@@ -14,6 +14,9 @@ from IPython.display import display, HTML
 plt.style.use('seaborn-v0_8-darkgrid')
 sns.set_palette("husl")
 
+#TODO: that bug where it thinks a str is a tx
+#TODO: outliers filtered out but not for the plotting
+
 class SolanaCopyTradingAnalyzer:
     """Analyze copy-trading bot wallet performance on Solana"""
 
@@ -872,8 +875,9 @@ def quick_solana_analysis(bot_wallet: str,
     return analyzer, trades_df
 
 
-quick_solana_analysis("9EibckQ6Jdfnhb4uAG352KaepYXspRrcNwFjC7xkvRXx", "ADENywZuaxmt9Ar8Hju9z4zMYktjTLTVecDrDENrTsKF", True, os.getenv('HELIUS_API_KEY'),)
+quick_solana_analysis("ADENywZuaxmt9Ar8Hju9z4zMYktjTLTVecDrDENrTsKF", "ADENywZuaxmt9Ar8Hju9z4zMYktjTLTVecDrDENrTsKF", True, os.getenv('HELIUS_API_KEY'),)
 
+#9EibckQ6Jdfnhb4uAG352KaepYXspRrcNwFjC7xkvRXx
 
 #8deJ9xeUvXSJwicYptA9mHsU2rN2pDx37KWzkDkEXhU6
 #ADENywZuaxmt9Ar8Hju9z4zMYktjTLTVecDrDENrTsKF
