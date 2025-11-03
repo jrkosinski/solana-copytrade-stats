@@ -14,8 +14,10 @@ from IPython.display import display, HTML
 plt.style.use('seaborn-v0_8-darkgrid')
 sns.set_palette("husl")
 
-#TODO: that bug where it thinks a str is a tx
+#TODO: that bug where it thinks a str is a tx: Error with Helius API: 'str' object has no attribute 'get'
 #TODO: outliers filtered out but not for the plotting
+#TODO: bug: not calculating latency
+
 
 class SolanaCopyTradingAnalyzer:
     """Analyze copy-trading bot wallet performance on Solana"""
@@ -24,6 +26,7 @@ class SolanaCopyTradingAnalyzer:
     # Trades with P/L % above MAX_PNL_PCT or below MIN_PNL_PCT will be excluded
     MAX_PNL_PCT = 500.0   # Exclude trades with profit > 500%
     MIN_PNL_PCT = -30.0   # Exclude trades with loss < -95%
+    FILTER_OUTLIERS = True
 
     def __init__(self, bot_wallet: str, target_wallet: str = None,
                  rpc_url: str = "https://api.mainnet-beta.solana.com",
@@ -582,16 +585,8 @@ class SolanaCopyTradingAnalyzer:
         else:
             self.latency_df = pd.DataFrame()
         
-        return self.trades_df
-    
-    def generate_report(self):
-        """Generate comprehensive analysis report"""
-
-        print("\n" + "=" * 80)
-        print("📊 SOLANA COPY-TRADING BOT PERFORMANCE REPORT")
-        print("=" * 80)
-
-        if not self.trades_df.empty:
+        #filter outliers
+        if (self.FILTER_OUTLIERS):
             # Filter outliers based on P/L percentage
             original_count = len(self.trades_df)
             filtered_df = self.trades_df[
@@ -616,26 +611,38 @@ class SolanaCopyTradingAnalyzer:
 
             # Use filtered data for statistics
             stats_df = filtered_df if len(filtered_df) > 0 else self.trades_df
+            self.trades_df = stats_df
 
-            if not stats_df.empty:
+        return self.trades_df
+    
+    def generate_report(self):
+        """Generate comprehensive analysis report"""
+
+        print("\n" + "=" * 80)
+        print("📊 SOLANA COPY-TRADING BOT PERFORMANCE REPORT")
+        print("=" * 80)
+
+        if not self.trades_df.empty:
+
+            if not self.trades_df.empty:
                 print("\n📈 Overall Statistics:")
                 print(f"   Total Matched Trades: {len(self.trades_df)}")
-                print(f"   Trades in Analysis: {len(stats_df)}")
-                print(f"   Unique Tokens Traded: {stats_df['token'].nunique()}")
-                print(f"   Date Range: {stats_df['buy_time'].min()} to {stats_df['sell_time'].max()}")
+                print(f"   Trades in Analysis: {len(self.trades_df)}")
+                print(f"   Unique Tokens Traded: {self.trades_df['token'].nunique()}")
+                print(f"   Date Range: {self.trades_df['buy_time'].min()} to {self.trades_df['sell_time'].max()}")
 
                 print("\n💰 Profit/Loss Statistics (Filtered):")
-                print(f"   Average P/L per trade: {stats_df['pnl_pct'].mean():.2f}%")
-                print(f"   Median P/L per trade: {stats_df['pnl_pct'].median():.2f}%")
-                print(f"   Best Trade: {stats_df['pnl_pct'].max():.2f}%")
-                print(f"   Worst Trade: {stats_df['pnl_pct'].min():.2f}%")
-                print(f"   Win Rate: {(stats_df['pnl_pct'] > 0).mean() * 100:.1f}%")
+                print(f"   Average P/L per trade: {self.trades_df['pnl_pct'].mean():.2f}%")
+                print(f"   Median P/L per trade: {self.trades_df['pnl_pct'].median():.2f}%")
+                print(f"   Best Trade: {self.trades_df['pnl_pct'].max():.2f}%")
+                print(f"   Worst Trade: {self.trades_df['pnl_pct'].min():.2f}%")
+                print(f"   Win Rate: {(self.trades_df['pnl_pct'] > 0).mean() * 100:.1f}%")
 
                 print("\n⏰ Hold Time Statistics:")
-                print(f"   Average Hold Time: {stats_df['hold_days'].mean():.2f} days")
-                print(f"   Median Hold Time: {stats_df['hold_days'].median():.2f} days")
-                print(f"   Shortest Hold: {stats_df['hold_seconds'].min() / 60:.1f} minutes")
-                print(f"   Longest Hold: {stats_df['hold_days'].max():.1f} days")
+                print(f"   Average Hold Time: {self.trades_df['hold_days'].mean():.2f} days")
+                print(f"   Median Hold Time: {self.trades_df['hold_days'].median():.2f} days")
+                print(f"   Shortest Hold: {self.trades_df['hold_seconds'].min() / 60:.1f} minutes")
+                print(f"   Longest Hold: {self.trades_df['hold_days'].max():.1f} days")
         else:
             print("\n⚠️ No matched trades found")
             print("   Raw transaction count:", len(self.bot_txs))
@@ -833,7 +840,8 @@ class SolanaCopyTradingAnalyzer:
 def quick_solana_analysis(bot_wallet: str, 
                          target_wallet: str = None,
                          use_helius: bool = True,
-                         helius_api_key: str = None):
+                         helius_api_key: str = None,
+                         limit: int = 1000):
     """
     Quick analysis function for Solana copy-trading bots
     
@@ -857,7 +865,7 @@ def quick_solana_analysis(bot_wallet: str,
     print(f"{helius_api_key}, {use_helius}")
     
     # Run analysis
-    trades_df = analyzer.analyze_wallet(limit=1320)  # Limit for quick analysis
+    trades_df = analyzer.analyze_wallet(limit=limit)  # Limit for quick analysis
     
     # Generate report
     analyzer.generate_report()
@@ -875,7 +883,7 @@ def quick_solana_analysis(bot_wallet: str,
     return analyzer, trades_df
 
 
-quick_solana_analysis("ADENywZuaxmt9Ar8Hju9z4zMYktjTLTVecDrDENrTsKF", "ADENywZuaxmt9Ar8Hju9z4zMYktjTLTVecDrDENrTsKF", True, os.getenv('HELIUS_API_KEY'),)
+quick_solana_analysis("8deJ9xeUvXSJwicYptA9mHsU2rN2pDx37KWzkDkEXhU6", None, True, os.getenv('HELIUS_API_KEY'), 600)
 
 #9EibckQ6Jdfnhb4uAG352KaepYXspRrcNwFjC7xkvRXx
 
