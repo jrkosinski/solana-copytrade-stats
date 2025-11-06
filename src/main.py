@@ -53,7 +53,13 @@ def quick_solana_analysis(bot_wallet: str,
     return analyzer, trades_df
 
 
-quick_solana_analysis("8deJ9xeUvXSJwicYptA9mHsU2rN2pDx37KWzkDkEXhU6", None, True, os.getenv('HELIUS_API_KEY'), 600)
+quick_solana_analysis(
+    "9EibckQ6Jdfnhb4uAG352KaepYXspRrcNwFjC7xkvRXx", 
+    None, 
+    True, 
+    os.getenv('HELIUS_API_KEY'), 
+    1000
+    )
 
 #9EibckQ6Jdfnhb4uAG352KaepYXspRrcNwFjC7xkvRXx
 

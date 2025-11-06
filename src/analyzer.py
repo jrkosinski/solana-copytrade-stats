@@ -26,7 +26,7 @@ class SolanaCopyTradingAnalyzer:
     def __init__(self, bot_wallet: str, target_wallet: str = None,
                  rpc_url: str = "https://api.mainnet-beta.solana.com",
                  helius_api_key: str = None,
-                 shyft_api_key: str = None
+                 shyft_api_key: str = None,
                  filter_outliers: bool = True):
         """
         Initialize the Solana analyzer
@@ -126,6 +126,7 @@ class SolanaCopyTradingAnalyzer:
             return {}
     
     def parse_jupiter_swap(self, tx_data: Dict) -> Optional[Dict]:
+        print("PARSE_JUPYTER_SWAP")
         """Parse Jupiter swap from transaction data"""
         
         if not tx_data or 'meta' not in tx_data:
@@ -210,9 +211,13 @@ class SolanaCopyTradingAnalyzer:
         url = f"{self.helius_url}/addresses/{wallet}/transactions"
         trades = []
         count = 0
-        before = '2Bx48yAZTTR4RUUshm9EpYbYXhfouh3aVNy3p57EVe8GUTypiXPcxnmZXFuso2w34UUuNLfLzseURhFzLzWkddND'
 
-        while (len(trades) < limit):
+        #TODO: why does this need to be here? 
+        #before = '2Bx48yAZTTR4RUUshm9EpYbYXhfouh3aVNy3p57EVe8GUTypiXPcxnmZXFuso2w34UUuNLfLzseURhFzLzWkddND'
+        #before = '26zhCktvwtkTVj77V6svRDvPnzvEPiQWoP2U27TaibYejDdyDyk5eU2emgsSaHAGBQR9D49nWtAcvUKKUAWFq65r'
+        before = ''
+
+        while (len(trades) < 10000):
             params = {
                 'api-key': self.helius_api_key,
                 #'limit': limit,
@@ -221,13 +226,21 @@ class SolanaCopyTradingAnalyzer:
             }
             print(before)
             
-            try:
+            #try:
+            if (True):
                 response = requests.get(url, params=params)
                 data = response.json()
+                if (len(data) == 0):
+                    break
                 
                 for tx in data:
                     count = count + 1
-                    if tx.get('type') == 'SWAP':
+
+                    if (type(tx) is str): 
+                        print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+                        print(tx)
+
+                    if not type(tx) is str and tx.get('type') == 'SWAP'  :
                         #Get token transfers
                         token_transfers = tx.get('tokenTransfers', [])
 
@@ -260,14 +273,18 @@ class SolanaCopyTradingAnalyzer:
                             'fee': tx.get('fee', 0) / 1e9,  #Convert to SOL
                             'success': tx.get('transactionError') is None
                         }
+                        if (trade['token_in_symbol'] == trade['token_out_symbol']) {
+                            print(tx)
+                            break
+                        }
                         trades.append(trade)
                     before = tx.get('signature')
                 
                 print(f"   Found {len(trades)} trades out of {count})")
             
-            except Exception as e:
-                print(f"   Error with Helius API: {e}")
-                return self.fetch_trades_basic(wallet, limit)
+            #except Exception as e:
+            #    print(f"   Error with Helius API: {e}")
+            #    return self.fetch_trades_basic(wallet, limit)
 
         return trades
     
@@ -892,7 +909,7 @@ class SolanaCopyTradingAnalyzer:
             'max_drawdown_duration': max_dd_duration
         }
 
-    def filter_outliers_from_trades():
+    def filter_outliers_from_trades(self):
 
         #Filter outliers based on P/L percentage
         original_count = len(self.trades_df)
