@@ -55,7 +55,7 @@ def quick_solana_analysis(bot_wallet: str,
 
 quick_solana_analysis(
     "9EibckQ6Jdfnhb4uAG352KaepYXspRrcNwFjC7xkvRXx", 
-    None, 
+    None, #"ADENywZuaxmt9Ar8Hju9z4zMYktjTLTVecDrDENrTsKF", 
     True, 
     os.getenv('HELIUS_API_KEY'), 
     1000
@@ -65,3 +65,6 @@ quick_solana_analysis(
 
 #8deJ9xeUvXSJwicYptA9mHsU2rN2pDx37KWzkDkEXhU6
 #ADENywZuaxmt9Ar8Hju9z4zMYktjTLTVecDrDENrTsKF
+#FPAeapSTb5H33Jmm2cZXEJhBP2MdHYgoecxTmChHrocV
+#CU3ErWQvUQhxiLE8Kvo6NsYujTudYLUAJ1qogVkMJQ1r
+#TTdzckfwm7Y46gUULe6zmwC9z5pV1o5qaKkvAbAvXvY  ?

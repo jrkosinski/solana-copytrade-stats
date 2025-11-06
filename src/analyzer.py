@@ -9,6 +9,8 @@ from typing import Dict, List, Optional, Tuple
 import json
 from web3 import Web3
 from IPython.display import display, HTML
+import ipywidgets as widgets
+from IPython.display import clear_output
 
 #Set style for better looking plots
 plt.style.use('seaborn-v0_8-darkgrid')
@@ -20,8 +22,8 @@ class SolanaCopyTradingAnalyzer:
 
     #Outlier filter constants for report generation
     #Trades with P/L % above MAX_PNL_PCT or below MIN_PNL_PCT will be excluded
-    MAX_PNL_PCT = 500.0   #Exclude trades with profit > 500%
-    MIN_PNL_PCT = -30.0   #Exclude trades with loss < -95%
+    MAX_PNL_PCT = 50000.0   #Exclude trades with profit > 50000%
+    MIN_PNL_PCT = -80.0   #Exclude trades with loss < -80%
 
     def __init__(self, bot_wallet: str, target_wallet: str = None,
                  rpc_url: str = "https://api.mainnet-beta.solana.com",
@@ -217,7 +219,7 @@ class SolanaCopyTradingAnalyzer:
         #before = '26zhCktvwtkTVj77V6svRDvPnzvEPiQWoP2U27TaibYejDdyDyk5eU2emgsSaHAGBQR9D49nWtAcvUKKUAWFq65r'
         before = ''
 
-        while (len(trades) < 10000):
+        while (count < limit):
             params = {
                 'api-key': self.helius_api_key,
                 #'limit': limit,
@@ -236,10 +238,6 @@ class SolanaCopyTradingAnalyzer:
                 for tx in data:
                     count = count + 1
 
-                    if (type(tx) is str): 
-                        print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
-                        print(tx)
-
                     if not type(tx) is str and tx.get('type') == 'SWAP'  :
                         #Get token transfers
                         token_transfers = tx.get('tokenTransfers', [])
@@ -253,10 +251,71 @@ class SolanaCopyTradingAnalyzer:
                                 print(f"Transfer {i}: {json.dumps(transfer, indent=2)}")
                             print("==========================================\n")
 
-                        #Helius provides token info - first transfer is typically token_in (spent)
-                        #Last transfer is typically token_out (received)
-                        token_in_data = token_transfers[0] if token_transfers else {}
-                        token_out_data = token_transfers[-1] if len(token_transfers) > 0 else {}
+                        #Debug: Print detailed token amount info for first 5 trades
+                        if count <= 5:
+                            print(f"\n--- DEBUG Trade #{count} (Sig: {tx.get('signature', 'N/A')[:16]}) ---")
+                            print(f"Transaction type: {tx.get('type')}")
+                            print(f"Number of token transfers: {len(token_transfers)}")
+                            for i, transfer in enumerate(token_transfers):
+                                print(f"\nTransfer #{i}:")
+                                print(f"  Mint: {transfer.get('mint', 'N/A')[:16]}...")
+                                print(f"  From: {transfer.get('fromUserAccount', 'N/A')[:16]}...")
+                                print(f"  To: {transfer.get('toUserAccount', 'N/A')[:16]}...")
+                                print(f"  tokenAmount (UI): {transfer.get('tokenAmount', 'N/A')}")
+                                print(f"  decimals: {transfer.get('decimals', 'N/A')}")
+                                #Check for raw amount if available
+                                if 'rawTokenAmount' in transfer:
+                                    print(f"  rawTokenAmount: {transfer.get('rawTokenAmount')}")
+                                    raw = transfer.get('rawTokenAmount')
+                                    decimals = transfer.get('decimals', 9)
+                                    calculated_ui = raw / (10 ** decimals)
+                                    print(f"  Calculated UI amount: {calculated_ui}")
+                                print(f"  Direction: {'OUT from wallet' if transfer.get('fromUserAccount') == wallet else 'IN to wallet'}")
+                            print(f"--- End Trade #{count} Debug ---\n")
+
+                        #Helius provides token info - need to identify which token is going out (spent) vs coming in (received)
+                        #Look at 'fromUserAccount' to determine direction relative to the wallet
+                        #IMPORTANT: Sum all transfers of the same token going out (e.g., SOL to pool + fees)
+                        token_in_by_mint = {}  # {mint: total_amount}
+                        token_out_by_mint = {}  # {mint: {amount, symbol}}
+
+                        for transfer in token_transfers:
+                            mint = transfer.get('mint')
+                            amount = transfer.get('tokenAmount', 0)
+                            symbol = transfer.get('tokenSymbol', mint[:8] if mint else 'Unknown')
+
+                            # If fromUserAccount matches our wallet, this token is going OUT (token_in)
+                            if transfer.get('fromUserAccount') == wallet:
+                                if mint not in token_in_by_mint:
+                                    token_in_by_mint[mint] = {'amount': 0, 'symbol': symbol}
+                                token_in_by_mint[mint]['amount'] += amount
+
+                            # If toUserAccount matches our wallet, this token is coming IN (token_out)
+                            elif transfer.get('toUserAccount') == wallet:
+                                if mint not in token_out_by_mint:
+                                    token_out_by_mint[mint] = {'amount': 0, 'symbol': symbol}
+                                token_out_by_mint[mint]['amount'] += amount
+
+                        # Skip if we couldn't identify both sides of the swap
+                        if not token_in_by_mint or not token_out_by_mint:
+                            continue
+
+                        # Identify the main swap pair (largest amounts)
+                        # Token IN: what we spent (should be only one type, e.g., SOL)
+                        # Token OUT: what we received (the token we're buying)
+                        token_in_mint = max(token_in_by_mint.items(), key=lambda x: x[1]['amount'])[0]
+                        token_out_mint = max(token_out_by_mint.items(), key=lambda x: x[1]['amount'])[0]
+
+                        token_in_data = {
+                            'mint': token_in_mint,
+                            'tokenAmount': token_in_by_mint[token_in_mint]['amount'],
+                            'tokenSymbol': token_in_by_mint[token_in_mint]['symbol']
+                        }
+                        token_out_data = {
+                            'mint': token_out_mint,
+                            'tokenAmount': token_out_by_mint[token_out_mint]['amount'],
+                            'tokenSymbol': token_out_by_mint[token_out_mint]['symbol']
+                        }
 
                         #Extract symbols from token transfers - Helius may provide this as 'tokenSymbol' or in tokenStandard
                         #If not available, we'll need to fetch it separately
@@ -273,9 +332,27 @@ class SolanaCopyTradingAnalyzer:
                             'fee': tx.get('fee', 0) / 1e9,  #Convert to SOL
                             'success': tx.get('transactionError') is None
                         }
-                        if (trade['token_in_symbol'] == trade['token_out_symbol']):
-                            print(tx)
-                            break
+
+                        # Sanity check: token_in and token_out should be different
+                        if trade['token_in'] == trade['token_out']:
+                            print(f"⚠️ Skipping invalid swap with same token: {trade['token_in_symbol']}")
+                            print(f"   Signature: {tx.get('signature')}")
+                            continue
+
+                        #Debug: Show parsed trade for first 5 trades
+                        if count <= 5:
+                            print(f"\n=== PARSED TRADE #{count} ===")
+                            print(f"Signature: {trade['signature'][:16]}...")
+                            print(f"Token IN:  {trade['token_in_amount']:.8f} {trade['token_in_symbol']}")
+                            print(f"Token OUT: {trade['token_out_amount']:.8f} {trade['token_out_symbol']}")
+                            print(f"Fee: {trade['fee']:.6f} SOL")
+
+                            #Calculate implied exchange rate
+                            if trade['token_in_amount'] > 0 and trade['token_out_amount'] > 0:
+                                rate = trade['token_out_amount'] / trade['token_in_amount']
+                                print(f"Exchange rate: 1 {trade['token_in_symbol']} = {rate:.8f} {trade['token_out_symbol']}")
+                            print(f"=========================\n")
+
                         trades.append(trade)
                     before = tx.get('signature')
                 
@@ -326,6 +403,10 @@ class SolanaCopyTradingAnalyzer:
         print(f"   Identified {len(trades)} trades")
         return trades
     
+    def _get_solscan_url(self, signature: str) -> str:
+        """Generate Solscan URL for transaction verification"""
+        return f"https://solscan.io/tx/{signature}"
+
     def _print_trade_match(self, trade: Dict, trade_num: int):
         """Print formatted trade match details to console"""
 
@@ -502,6 +583,24 @@ class SolanaCopyTradingAnalyzer:
                         'proceeds_token': sell.get('proceeds_token', 'Unknown'),
                         'pnl_pct': pnl_pct
                     }
+
+                    #Debug: Flag trades with suspiciously high PnL
+                    if len(matched) < 5 or abs(pnl_pct) > 1000:
+                        print(f"\n🔍 DEBUG: PnL Calculation for {data['symbol']}")
+                        print(f"  Buy:  {buy['amount']:.8f} tokens for {buy['cost']:.8f} {buy.get('cost_token')}")
+                        print(f"  Sell: {sell['amount']:.8f} tokens for {sell['proceeds']:.8f} {sell.get('proceeds_token')}")
+                        print(f"  Cost per token: {cost_per_token:.15f} {buy.get('cost_token')}")
+                        print(f"  Proceeds per token: {proceeds_per_token:.15f} {sell.get('proceeds_token')}")
+                        print(f"  Profit: {profit:.8f} {sell.get('proceeds_token')}")
+                        print(f"  P/L %: {pnl_pct:.2f}%")
+                        print(f"  Buy Sig: {buy['signature']}")
+                        print(f"  Sell Sig: {sell['signature']}")
+                        print(f"  🔗 Verify Buy:  {self._get_solscan_url(buy['signature'])}")
+                        print(f"  🔗 Verify Sell: {self._get_solscan_url(sell['signature'])}")
+                        if abs(pnl_pct) > 1000:
+                            print(f"  ⚠️ WARNING: PnL exceeds 1000%! Verify amounts on Solscan.")
+                        print()
+
                     matched.append(trade_match)
 
                     #Print formatted trade details
@@ -727,33 +826,56 @@ class SolanaCopyTradingAnalyzer:
         ax.set_title('Recent Matched Trades (Latest 15)', fontsize=12, fontweight='bold', pad=10)
 
     def plot_results(self, figsize=(20, 14)):
-        """Create visualizations"""
+        """Create visualizations with tabbed interface"""
 
         if self.trades_df.empty and self.latency_df.empty:
             print("❌ No data to plot")
             return
 
-        #Determine subplot layout based on available data
+        #Determine what data we have
         has_trades = not self.trades_df.empty
         has_latency = not self.latency_df.empty
 
+        #Create output widgets for each tab
+        graphs_output = widgets.Output()
+        table_output = widgets.Output()
+
+        #Create the graphs tab
+        with graphs_output:
+            self._plot_graphs(has_trades, has_latency, figsize)
+
+        #Create the table tab
+        with table_output:
+            if has_trades:
+                self._plot_table()
+            else:
+                print("No trade data available for table")
+
+        #Create tab widget
+        tab = widgets.Tab(children=[graphs_output, table_output])
+        tab.set_title(0, 'Performance Graphs')
+        tab.set_title(1, 'Trade Details')
+
+        #Display the tabbed interface
+        display(tab)
+
+    def _plot_graphs(self, has_trades, has_latency, figsize):
+        """Create the performance graphs"""
+
         #Create figure with GridSpec for flexible layout
         if has_trades and has_latency:
-            fig = plt.figure(figsize=figsize)
-            gs = fig.add_gridspec(4, 3, hspace=0.4, wspace=0.3, height_ratios=[1, 1, 1, 1.2])
-            axes = [fig.add_subplot(gs[i, j]) for i in range(3) for j in range(3)]
-            table_ax = fig.add_subplot(gs[3, :])  #Full width for table
-        elif has_trades:
-            fig = plt.figure(figsize=figsize)
-            gs = fig.add_gridspec(3, 3, hspace=0.4, wspace=0.3, height_ratios=[1, 1, 1.2])
+            fig = plt.figure(figsize=(figsize[0], figsize[1] * 0.75))
+            gs = fig.add_gridspec(2, 3, hspace=0.4, wspace=0.3)
             axes = [fig.add_subplot(gs[i, j]) for i in range(2) for j in range(3)]
-            table_ax = fig.add_subplot(gs[2, :])  #Full width for table
+        elif has_trades:
+            fig = plt.figure(figsize=(figsize[0], figsize[1] * 0.6))
+            gs = fig.add_gridspec(2, 3, hspace=0.4, wspace=0.3)
+            axes = [fig.add_subplot(gs[i, j]) for i in range(2) for j in range(3)]
         else:
             fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-            table_ax = None
 
         plot_idx = 0
-        
+
         if has_trades:
             #1. P/L Distribution
             ax = axes[plot_idx]
@@ -763,7 +885,7 @@ class SolanaCopyTradingAnalyzer:
             ax.set_xlabel('P/L (%)')
             ax.set_ylabel('Number of Trades')
             plot_idx += 1
-            
+
             #2. Win/Loss Pie
             ax = axes[plot_idx]
             wins = (self.trades_df['pnl_pct'] > 0).sum()
@@ -772,12 +894,12 @@ class SolanaCopyTradingAnalyzer:
                    autopct='%1.1f%%', colors=['#2ecc71', '#e74c3c'], startangle=90)
             ax.set_title('Win/Loss Ratio')
             plot_idx += 1
-            
+
             #3. Cumulative P/L
             ax = axes[plot_idx]
             df_sorted = self.trades_df.sort_values('sell_time')
             df_sorted['cumulative_pnl'] = df_sorted['pnl_pct'].cumsum()
-            ax.plot(df_sorted['sell_time'], df_sorted['cumulative_pnl'], 
+            ax.plot(df_sorted['sell_time'], df_sorted['cumulative_pnl'],
                    linewidth=2, color='blue')
             ax.fill_between(df_sorted['sell_time'], 0, df_sorted['cumulative_pnl'],
                            where=(df_sorted['cumulative_pnl'] > 0), color='green', alpha=0.3)
@@ -788,7 +910,7 @@ class SolanaCopyTradingAnalyzer:
             ax.set_ylabel('Cumulative P/L (%)')
             ax.tick_params(axis='x', rotation=45)
             plot_idx += 1
-            
+
             #4. Hold Time vs P/L
             ax = axes[plot_idx]
             scatter = ax.scatter(self.trades_df['hold_days'], self.trades_df['pnl_pct'],
@@ -800,7 +922,7 @@ class SolanaCopyTradingAnalyzer:
             ax.set_ylabel('P/L (%)')
             plt.colorbar(scatter, ax=ax)
             plot_idx += 1
-            
+
             #5. Top Tokens
             ax = axes[plot_idx]
             token_perf = self.trades_df.groupby('token')['pnl_pct'].mean().sort_values().tail(10)
@@ -809,7 +931,7 @@ class SolanaCopyTradingAnalyzer:
             ax.set_title('Top 10 Tokens by Avg P/L')
             ax.set_xlabel('Average P/L (%)')
             plot_idx += 1
-        
+
         if has_latency:
             #6. Latency Distribution
             ax = axes[plot_idx]
@@ -823,11 +945,18 @@ class SolanaCopyTradingAnalyzer:
             ax.set_ylabel('Frequency')
             ax.legend()
 
-        #Add detailed trade table
-        if has_trades and table_ax is not None:
-            self._add_trade_table(table_ax)
-
         plt.suptitle(f'Solana Copy-Trading Bot Analysis\n{self.bot_wallet[:8]}...{self.bot_wallet[-6:]}',
+                    fontsize=14, fontweight='bold', y=0.995)
+        plt.tight_layout()
+        plt.show()
+
+    def _plot_table(self):
+        """Create a separate figure for the detailed trade table"""
+
+        fig, ax = plt.subplots(figsize=(20, 10))
+        self._add_trade_table(ax)
+
+        plt.suptitle(f'Trade Details - {self.bot_wallet[:8]}...{self.bot_wallet[-6:]}',
                     fontsize=14, fontweight='bold', y=0.995)
         plt.tight_layout()
         plt.show()
