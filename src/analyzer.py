@@ -273,10 +273,9 @@ class SolanaCopyTradingAnalyzer:
                             'fee': tx.get('fee', 0) / 1e9,  #Convert to SOL
                             'success': tx.get('transactionError') is None
                         }
-                        if (trade['token_in_symbol'] == trade['token_out_symbol']) {
+                        if (trade['token_in_symbol'] == trade['token_out_symbol']):
                             print(tx)
                             break
-                        }
                         trades.append(trade)
                     before = tx.get('signature')
                 
