@@ -1039,18 +1039,19 @@ class SolanaCopyTradingAnalyzer:
                 f"{row['cost']:.3f} {row['cost_token']}",
                 f"{row['proceeds']:.3f} {row['proceeds_token']}",
                 f"{profit_sign}{row['profit']:.3f}",
-                f"{pnl_sign}{row['pnl_pct']:.1f}%"
+                f"{pnl_sign}{row['pnl_pct']:.1f}%",
+                f"{row['largest_sell_pct']:.0f}%"
             ])
 
         #Create column headers
-        col_labels = ['Token', 'Sell Time', 'Hold', 'Cost', 'Proceeds', 'Profit', 'P/L %']
+        col_labels = ['Token', 'Sell Time', 'Hold', 'Cost', 'Proceeds', 'Profit', 'P/L %', 'Dump %']
 
         #Create the table
         table = ax.table(cellText=table_data,
                         colLabels=col_labels,
                         cellLoc='left',
                         loc='center',
-                        colWidths=[0.15, 0.12, 0.08, 0.18, 0.18, 0.12, 0.10])
+                        colWidths=[0.13, 0.11, 0.07, 0.16, 0.16, 0.11, 0.09, 0.08])
 
         #Style the table
         table.auto_set_font_size(False)
