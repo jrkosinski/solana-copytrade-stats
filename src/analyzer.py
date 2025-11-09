@@ -133,7 +133,7 @@ class SolanaCopyTradingAnalyzer:
         Prints detailed statistics including:
         - Overall trade counts and date ranges
         - Profit/loss statistics (mean, median, win rate)
-        - Risk metrics (Sharpe ratio, drawdown)
+        - Risk metrics (Sharpe ratio, drawdown, draw-up)
         - Hold time statistics
         - Copy latency statistics (if target wallet provided)
         """
@@ -164,6 +164,8 @@ class SolanaCopyTradingAnalyzer:
                 print(f"   Sharpe Ratio: {risk_metrics['sharpe_ratio']:.2f}")
                 print(f"   Max Drawdown: {risk_metrics['max_drawdown']:.2f}%")
                 print(f"   Max Drawdown Duration: {risk_metrics['max_drawdown_duration']:.2f} days")
+                print(f"   Max Draw-up: {risk_metrics['max_drawup']:.2f}%")
+                print(f"   Max Draw-up Duration: {risk_metrics['max_drawup_duration']:.2f} days")
 
                 print("\n⏰ Hold Time Statistics:")
                 print(f"   Average Hold Time: {self.trades_df['hold_days'].mean():.2f} days")
@@ -1152,19 +1154,23 @@ class SolanaCopyTradingAnalyzer:
 
     def _calculate_risk_metrics(self) -> Dict[str, float]:
         """
-        Calculate Sharpe ratio and max drawdown from trades
+        Calculate Sharpe ratio, max drawdown, and max draw-up from trades
 
         Returns:
             Dict containing:
                 - sharpe_ratio: Annualized Sharpe ratio (assuming 0% risk-free rate)
                 - max_drawdown: Maximum drawdown percentage
                 - max_drawdown_duration: Duration of max drawdown in days
+                - max_drawup: Maximum draw-up percentage (most account was up)
+                - max_drawup_duration: Duration of max draw-up in days
         """
         if self.trades_df.empty:
             return {
                 'sharpe_ratio': 0.0,
                 'max_drawdown': 0.0,
-                'max_drawdown_duration': 0.0
+                'max_drawdown_duration': 0.0,
+                'max_drawup': 0.0,
+                'max_drawup_duration': 0.0
             }
 
         # Sort trades by sell time
@@ -1220,10 +1226,33 @@ class SolanaCopyTradingAnalyzer:
                                   df_sorted.iloc[peak_idx]['sell_time']).total_seconds()
                 max_dd_duration = duration_seconds / 86400  # Convert to days
 
+        # Calculate Maximum Draw-up (opposite of drawdown)
+        # Maximum increase from a trough (running minimum) to a subsequent peak
+        running_min = np.minimum.accumulate(cumulative)
+        drawup = cumulative - running_min
+
+        max_drawup = np.max(drawup)
+
+        # Calculate max draw-up duration
+        max_du_duration = 0.0
+        if max_drawup > 0:
+            # Find the index of max draw-up
+            max_du_idx = np.argmax(drawup)
+
+            # Find the trough before this draw-up
+            trough_idx = np.argmin(cumulative[:max_du_idx + 1])
+
+            if trough_idx < max_du_idx:
+                duration_seconds = (df_sorted.iloc[max_du_idx]['sell_time'] -
+                                  df_sorted.iloc[trough_idx]['sell_time']).total_seconds()
+                max_du_duration = duration_seconds / 86400  # Convert to days
+
         return {
             'sharpe_ratio': sharpe_ratio,
             'max_drawdown': max_drawdown,
-            'max_drawdown_duration': max_dd_duration
+            'max_drawdown_duration': max_dd_duration,
+            'max_drawup': max_drawup,
+            'max_drawup_duration': max_du_duration
         }
 
     def _filter_outliers_from_trades(self):

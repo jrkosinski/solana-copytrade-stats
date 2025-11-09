@@ -67,7 +67,7 @@ def full_solana_analysis(bot_wallet: str,
     
     # Export results
     if not trades_df.empty:
-        filename = f"solana_trades_{bot_wallet[:8]}_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
+        filename = f"./csv/solana_trades_{bot_wallet[:8]}_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
         trades_df.to_csv(filename, index=False)
         print(f"\n✅ Results exported to {filename}")
     
