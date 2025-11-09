@@ -29,7 +29,7 @@ class SolanaCopyTradingAnalyzer:
                  rpc_url: str = "https://api.mainnet-beta.solana.com",
                  helius_api_key: str = None,
                  shyft_api_key: str = None,
-                 filter_outliers: bool = True):
+                 filter_outliers: bool = False):
         """
         Initialize the Solana analyzer
         
@@ -45,7 +45,7 @@ class SolanaCopyTradingAnalyzer:
         self.rpc_url = rpc_url
         self.helius_api_key = helius_api_key
         self.shyft_api_key = shyft_api_key
-        self.filter_outliers = filter_outliers
+        self._filter_outliers = filter_outliers
 
         print(f"Helius API KEY IS {helius_api_key}")
         print(f"=====================================")
@@ -72,9 +72,173 @@ class SolanaCopyTradingAnalyzer:
         self.bot_txs = []
         self.target_txs = []
         self.trades = []
+      
+    
+    def analyze_wallet(self, limit: int = 1000, max_trades: int =100):
+        """
+        Main analysis function - orchestrates fetching, matching, and analyzing trades
+
+        Args:
+            limit: API request limit per call
+            max_trades: Maximum number of trades to fetch
+
+        Returns:
+            DataFrame containing matched trades with P/L calculations
+        """
         
-    def fetch_signatures(self, wallet: str, limit: int = 1000) -> List[str]:
-        """Fetch transaction signatures for a wallet using Solana RPC"""
+        print(f"🚀 Analyzing Solana Copy-Trading Bot")
+        print(f"   Bot Wallet: {self.bot_wallet}")
+        print("=" * 80)
+        
+        #Fetch bot trades
+        self.bot_txs = self._fetch_trades(self.bot_wallet, limit, max_trades)
+        
+        #Match trades for P/L
+        print(f"\n💰 Matching trades for P/L calculation out of {len(self.bot_txs)} txs...")
+        self.trades = self._match_trades_for_pnl(self.bot_txs)
+        print(f"   Matched {len(self.trades)} trade pairs")
+        
+        #Convert to DataFrame
+        if self.trades:
+            self.trades_df = pd.DataFrame(self.trades)
+        else:
+            self.trades_df = pd.DataFrame()
+        
+        #Calculate latency if target wallet provided
+        if self.target_wallet:
+            print(f"\n⚡ Fetching target wallet trades...")
+            target_txs = self._fetch_trades(self.target_wallet, limit)
+            
+            print("📊 Calculating copy latency...")
+            latency_data = self._calculate_latency(self.bot_txs, target_txs)
+            
+            if latency_data:
+                self.latency_df = pd.DataFrame(latency_data)
+                print(f"   Calculated latency for {len(latency_data)} trades")
+            else:
+                self.latency_df = pd.DataFrame()
+        else:
+            self.latency_df = pd.DataFrame()
+        
+        #filter outliers
+        if (self._filter_outliers):
+            self._filter_outliers_from_trades()
+
+        return self.trades_df
+    
+    def generate_report(self):
+        """
+        Generate comprehensive analysis report with statistics and metrics
+
+        Prints detailed statistics including:
+        - Overall trade counts and date ranges
+        - Profit/loss statistics (mean, median, win rate)
+        - Risk metrics (Sharpe ratio, drawdown)
+        - Hold time statistics
+        - Copy latency statistics (if target wallet provided)
+        """
+
+        print("\n" + "=" * 80)
+        print("📊 SOLANA COPY-TRADING BOT PERFORMANCE REPORT")
+        print("=" * 80)
+
+        if not self.trades_df.empty:
+
+            if not self.trades_df.empty:
+                print("\n📈 Overall Statistics:")
+                print(f"   Total Matched Trades: {len(self.trades_df)}")
+                print(f"   Trades in Analysis: {len(self.trades_df)}")
+                print(f"   Unique Tokens Traded: {self.trades_df['token'].nunique()}")
+                print(f"   Date Range: {self.trades_df['buy_time'].min()} to {self.trades_df['sell_time'].max()}")
+
+                print("\n💰 Profit/Loss Statistics (Filtered):")
+                print(f"   Average P/L per trade: {self.trades_df['pnl_pct'].mean():.2f}%")
+                print(f"   Median P/L per trade: {self.trades_df['pnl_pct'].median():.2f}%")
+                print(f"   Best Trade: {self.trades_df['pnl_pct'].max():.2f}%")
+                print(f"   Worst Trade: {self.trades_df['pnl_pct'].min():.2f}%")
+                print(f"   Win Rate: {(self.trades_df['pnl_pct'] > 0).mean() * 100:.1f}%")
+
+                # Calculate and display risk metrics
+                risk_metrics = self._calculate_risk_metrics()
+                print("\n📊 Risk Metrics:")
+                print(f"   Sharpe Ratio: {risk_metrics['sharpe_ratio']:.2f}")
+                print(f"   Max Drawdown: {risk_metrics['max_drawdown']:.2f}%")
+                print(f"   Max Drawdown Duration: {risk_metrics['max_drawdown_duration']:.2f} days")
+
+                print("\n⏰ Hold Time Statistics:")
+                print(f"   Average Hold Time: {self.trades_df['hold_days'].mean():.2f} days")
+                print(f"   Median Hold Time: {self.trades_df['hold_days'].median():.2f} days")
+                print(f"   Shortest Hold: {self.trades_df['hold_seconds'].min() / 60:.1f} minutes")
+                print(f"   Longest Hold: {self.trades_df['hold_days'].max():.1f} days")
+        else:
+            print("\n⚠️ No matched trades found")
+            print("   Raw transaction count:", len(self.bot_txs))
+        
+        if not self.latency_df.empty:
+            print("\n⚡ Copy Latency Statistics:")
+            print(f"   Average Slot Latency: {self.latency_df['slot_latency'].mean():.1f} slots")
+            print(f"   Median Slot Latency: {self.latency_df['slot_latency'].median():.0f} slots")
+            print(f"   Average Time Latency: {self.latency_df['time_latency'].mean():.1f} seconds")
+            print(f"   Fastest Copy: {self.latency_df['slot_latency'].min()} slots")
+            print(f"   Slowest Copy: {self.latency_df['slot_latency'].max()} slots")
+            
+            #Estimate latency in milliseconds (Solana slot time ~400ms)
+            avg_ms = self.latency_df['slot_latency'].mean() * 400
+            print(f"   Estimated Avg Latency: ~{avg_ms:.0f}ms")
+    
+    def plot_results(self, figsize=(20, 14)):
+        """
+        Create visualizations with tabbed interface for Jupyter notebooks
+
+        Args:
+            figsize: Tuple of (width, height) for figure size in inches
+        """
+
+        if self.trades_df.empty and self.latency_df.empty:
+            print("❌ No data to plot")
+            return
+
+        #Determine what data we have
+        has_trades = not self.trades_df.empty
+        has_latency = not self.latency_df.empty
+
+        #Create output widgets for each tab
+        graphs_output = widgets.Output()
+        table_output = widgets.Output()
+
+        #Create the graphs tab
+        with graphs_output:
+            self._plot_graphs(has_trades, has_latency, figsize)
+
+        #Create the table tab
+        with table_output:
+            if has_trades:
+                self._plot_table()
+            else:
+                print("No trade data available for table")
+
+        #Create tab widget
+        tab = widgets.Tab(children=[graphs_output, table_output])
+        tab.set_title(0, 'Performance Graphs')
+        tab.set_title(1, 'Trade Details')
+
+        #Display the tabbed interface
+        display(tab)
+
+
+    #=============================================================================================================
+     
+    def _fetch_signatures(self, wallet: str, limit: int = 1000) -> List[str]:
+        """
+        Fetch transaction signatures for a wallet using Solana RPC
+
+        Args:
+            wallet: Solana wallet address to fetch signatures for
+            limit: Maximum number of signatures to retrieve (default: 1000)
+
+        Returns:
+            List of transaction signature strings
+        """
         
         print(f"📥 Fetching signatures for {wallet[:8]}...{wallet[-6:]}")
         
@@ -104,8 +268,16 @@ class SolanaCopyTradingAnalyzer:
             print(f"   Error fetching signatures: {e}")
             return []
     
-    def fetch_transaction(self, signature: str) -> Dict:
-        """Fetch detailed transaction data"""
+    def _fetch_transaction(self, signature: str) -> Dict:
+        """
+        Fetch detailed transaction data for a given signature
+
+        Args:
+            signature: Transaction signature hash
+
+        Returns:
+            Dictionary containing transaction details or empty dict on error
+        """
         
         payload = {
             "jsonrpc": "2.0",
@@ -127,9 +299,17 @@ class SolanaCopyTradingAnalyzer:
         except:
             return {}
     
-    def parse_jupiter_swap(self, tx_data: Dict) -> Optional[Dict]:
-        print("PARSE_JUPYTER_SWAP")
-        """Parse Jupiter swap from transaction data"""
+    def _parse_jupiter_swap(self, tx_data: Dict) -> Optional[Dict]:
+        """
+        Parse Jupiter swap details from transaction data
+
+        Args:
+            tx_data: Dictionary containing raw transaction data
+
+        Returns:
+            Dictionary with swap details (token_in, token_out, amounts, symbols) or None if not a Jupiter swap
+        """
+        #print("PARSE_JUPYTER_SWAP")
         
         if not tx_data or 'meta' not in tx_data:
             return None
@@ -200,13 +380,92 @@ class SolanaCopyTradingAnalyzer:
         
         return None
     
-    def fetch_trades_helius(self, wallet: str, limit: int = 1000) -> List[Dict]:
+    def _get_cached_trade_results(self, wallet: str) -> bool:
+        """
+        Load previously cached trade data from JSON file
+
+        Args:
+            wallet: Wallet address used as cache file name
+
+        Returns:
+            True if cache loaded successfully, False otherwise
+        """ 
+        cache_file = self._get_cache_file_name(wallet)
+
+        print(f"Checking for  {cache_file}")
+        if os.path.exists(cache_file):
+            print(f"📂 Loading cached trades from {cache_file}")
+            try:
+                with open(cache_file, 'r') as f:
+                    self.bot_txs = json.load(f)
+                print(f"   Loaded {len(self.bot_txs)} cached trades")
+                return True
+            except Exception as e:
+                print(f"   Error loading cache: {e}, fetching fresh data...")
+
+        return False
+
+    def _write_to_trades_cache(self, wallet: str):
+        """
+        Save trade data to JSON cache file
+
+        Args:
+            wallet: Wallet address used as cache file name
+        """ 
+        cache_file = self._get_cache_file_name(wallet)
+
+        try:
+            with open(cache_file, 'w') as f:
+                json.dump(self.bot_txs, f, indent=2)
+            print(f"💾 Cached {len(self.bot_txs)} trades to {cache_file}")
+        except Exception as e:
+            print(f"   Warning: Could not write cache file: {e}")
+    
+    def _get_cache_file_name(self, wallet: str) -> str: 
+        return f"./cached_results/{wallet}.json"
+
+    def _fetch_trades(self, wallet: str, limit: int = 100, max_trades: int = 100) -> List[Dict]:
+        print("FETCH TRADES")
+        """
+        Fetch trades for a wallet, using cache if available or fetching fresh data
+
+        Args:
+            wallet: Wallet address to fetch trades for
+            limit: API request limit per call
+            max_trades: Maximum number of trades to fetch
+        """
+        # Check for cached data
+        if not self._get_cached_trade_results(wallet):
+
+            # Fetch fresh data
+            if self.helius_api_key:
+                self.bot_txs = self._fetch_trades_helius(self.bot_wallet, limit, max_trades=max_trades)
+            else:
+                self.bot_txs = self._fetch_trades_basic(self.bot_wallet, limit)
+
+            # Write to cache file
+            self._write_to_trades_cache(wallet)
+        
+        return self.bot_txs
+
+    def _fetch_trades_helius(self, wallet: str, limit: int = 1000, max_trades: int = 100) -> List[Dict]:
+        """
+        Fetch and parse trades using Helius API (more reliable than basic RPC)
+
+        Args:
+            wallet: Wallet address to fetch trades for
+            limit: API request limit per call
+            max_trades: Maximum number of trades to fetch (0 for unlimited)
+
+        Returns:
+            List of dictionaries containing parsed trade data
+        """
+
         print(f" FETCH TRADES HELIUS")
-        """Fetch and parse trades using Helius API (more reliable)"""
         
         if not self.helius_api_key:
             print("⚠️ Helius API key not provided, using basic RPC parsing")
-            return self.fetch_trades_basic(wallet, limit)
+            return self._fetch_trades_basic(wallet, limit)
         
         print(f"🔍 Fetching trades via Helius for {wallet[:8]}...{wallet[-6:]}")
         
@@ -214,7 +473,6 @@ class SolanaCopyTradingAnalyzer:
         trades = []
         count = 0
 
-        #TODO: why does this need to be here? 
         #before = '2Bx48yAZTTR4RUUshm9EpYbYXhfouh3aVNy3p57EVe8GUTypiXPcxnmZXFuso2w34UUuNLfLzseURhFzLzWkddND'
         #before = '26zhCktvwtkTVj77V6svRDvPnzvEPiQWoP2U27TaibYejDdyDyk5eU2emgsSaHAGBQR9D49nWtAcvUKKUAWFq65r'
         before = ''
@@ -237,6 +495,9 @@ class SolanaCopyTradingAnalyzer:
                 
                 for tx in data:
                     count = count + 1
+
+                    if type(tx) is str: 
+                        print(f"TX IS A STR: {tx}")
 
                     if not type(tx) is str and tx.get('type') == 'SWAP'  :
                         #Get token transfers
@@ -354,21 +615,33 @@ class SolanaCopyTradingAnalyzer:
                             print(f"=========================\n")
 
                         trades.append(trade)
-                    before = tx.get('signature')
+                        before = tx.get('signature')
                 
                 print(f"   Found {len(trades)} trades out of {count})")
+
+                if (max_trades > 0 and len(trades) >= max_trades): 
+                    return trades
             
             #except Exception as e:
             #    print(f"   Error with Helius API: {e}")
-            #    return self.fetch_trades_basic(wallet, limit)
+            #    return self._fetch_trades_basic(wallet, limit)
 
         return trades
     
-    def fetch_trades_basic(self, wallet: str, limit: int = 1000) -> List[Dict]:
+    def _fetch_trades_basic(self, wallet: str, limit: int = 1000) -> List[Dict]:
+        """
+        Basic trade fetching using standard Solana RPC endpoints
+
+        Args:
+            wallet: Wallet address to fetch trades for
+            limit: Maximum number of signatures to fetch
+
+        Returns:
+            List of dictionaries containing parsed trade data
+        """
         print(f" FETCH TRADES BASIC")
-        """Basic trade fetching using RPC"""
         
-        signatures = self.fetch_signatures(wallet, limit)
+        signatures = self._fetch_signatures(wallet, limit)
         trades = []
         
         print(f"🔄 Parsing {len(signatures)} transactions...")
@@ -377,7 +650,7 @@ class SolanaCopyTradingAnalyzer:
             if i % 20 == 0:
                 print(f"   Progress: {i}/{min(100, len(signatures))}")
             
-            tx = self.fetch_transaction(sig)
+            tx = self._fetch_transaction(sig)
             
             if tx:
                 #Parse swap
@@ -404,11 +677,25 @@ class SolanaCopyTradingAnalyzer:
         return trades
     
     def _get_solscan_url(self, signature: str) -> str:
-        """Generate Solscan URL for transaction verification"""
+        """
+        Generate Solscan URL for transaction verification
+
+        Args:
+            signature: Transaction signature hash
+
+        Returns:
+            Full Solscan.io URL for the transaction
+        """
         return f"https://solscan.io/tx/{signature}"
 
     def _print_trade_match(self, trade: Dict, trade_num: int):
-        """Print formatted trade match details to console"""
+        """
+        Print formatted trade match details to console
+
+        Args:
+            trade: Dictionary containing matched trade details (buy/sell pair with P/L)
+            trade_num: Sequential trade number for display
+        """
 
         #Calculate hold duration in a readable format
         hold_seconds = trade['hold_seconds']
@@ -455,8 +742,16 @@ class SolanaCopyTradingAnalyzer:
         print(f"PROFIT:        {profit_indicator}{profit_raw:.4f} {trade['proceeds_token']} ({pnl_indicator}{pnl_pct:.2f}%)")
         print(f"{'='*70}")
 
-    def match_trades_for_pnl(self, trades: List[Dict]) -> List[Dict]:
-        """Match buy and sell trades to calculate P/L"""
+    def _match_trades_for_pnl(self, trades: List[Dict]) -> List[Dict]:
+        """
+        Match buy and sell trades using FIFO to calculate profit/loss
+
+        Args:
+            trades: List of raw trade dictionaries from transaction parsing
+
+        Returns:
+            List of matched trade pairs with P/L calculations
+        """
         print('Match buy and sell trades to calculate P/L')
         
         matched = []
@@ -610,8 +905,17 @@ class SolanaCopyTradingAnalyzer:
         
         return matched
     
-    def calculate_latency(self, bot_trades: List[Dict], target_trades: List[Dict]) -> List[Dict]:
-        """Calculate latency between bot and target wallet"""
+    def _calculate_latency(self, bot_trades: List[Dict], target_trades: List[Dict]) -> List[Dict]:
+        """
+        Calculate latency between bot and target wallet copy-trades
+
+        Args:
+            bot_trades: List of bot wallet trades
+            target_trades: List of target wallet trades being copied
+
+        Returns:
+            List of dictionaries with latency metrics (slot and time differences)
+        """
         
         latency_data = []
         
@@ -640,6 +944,9 @@ class SolanaCopyTradingAnalyzer:
                     
                     slot_latency = bot_trade['slot'] - target_trade['slot']
                     time_latency = bot_trade['timestamp'] - target_trade['timestamp']
+
+                    print(f"SLOT LATENCY for {token_key}: {slot_latency}")
+                    print(f"TIME LATENCY for {token_key}: {time_latency}")
                     
                     latency_data.append({
                         'token': bot_trade.get('token_out_symbol', bot_trade.get('token_in_symbol', 'Unknown')),
@@ -651,111 +958,18 @@ class SolanaCopyTradingAnalyzer:
                         'time_latency': time_latency,
                         'time_latency_ms': time_latency * 1000  #Convert to milliseconds
                     })
+            else: 
+                print(f'TRADE {token_key} NOT FOUND')
         
         return latency_data
     
-    def analyze_wallet(self, limit: int = 1000):
-        """Main analysis function"""
-        
-        print(f"🚀 Analyzing Solana Copy-Trading Bot")
-        print(f"   Bot Wallet: {self.bot_wallet}")
-        print("=" * 80)
-        
-        #Fetch bot trades
-        if self.helius_api_key:
-            self.bot_txs = self.fetch_trades_helius(self.bot_wallet, limit)
-        else:
-            self.bot_txs = self.fetch_trades_basic(self.bot_wallet, limit)
-        
-        #Match trades for P/L
-        print(f"\n💰 Matching trades for P/L calculation out of {len(self.bot_txs)} txs...")
-        self.trades = self.match_trades_for_pnl(self.bot_txs)
-        print(f"   Matched {len(self.trades)} trade pairs")
-        
-        #Convert to DataFrame
-        if self.trades:
-            self.trades_df = pd.DataFrame(self.trades)
-        else:
-            self.trades_df = pd.DataFrame()
-        
-        #Calculate latency if target wallet provided
-        if self.target_wallet:
-            print(f"\n⚡ Fetching target wallet trades...")
-            if self.helius_api_key:
-                target_txs = self.fetch_trades_helius(self.target_wallet, limit)
-            else:
-                target_txs = self.fetch_trades_basic(self.target_wallet, limit)
-            
-            print("📊 Calculating copy latency...")
-            latency_data = self.calculate_latency(self.bot_txs, target_txs)
-            
-            if latency_data:
-                self.latency_df = pd.DataFrame(latency_data)
-                print(f"   Calculated latency for {len(latency_data)} trades")
-            else:
-                self.latency_df = pd.DataFrame()
-        else:
-            self.latency_df = pd.DataFrame()
-        
-        #filter outliers
-        if (self.filter_outliers):
-            self.filter_outliers_from_trades()
-
-        return self.trades_df
-    
-    def generate_report(self):
-        """Generate comprehensive analysis report"""
-
-        print("\n" + "=" * 80)
-        print("📊 SOLANA COPY-TRADING BOT PERFORMANCE REPORT")
-        print("=" * 80)
-
-        if not self.trades_df.empty:
-
-            if not self.trades_df.empty:
-                print("\n📈 Overall Statistics:")
-                print(f"   Total Matched Trades: {len(self.trades_df)}")
-                print(f"   Trades in Analysis: {len(self.trades_df)}")
-                print(f"   Unique Tokens Traded: {self.trades_df['token'].nunique()}")
-                print(f"   Date Range: {self.trades_df['buy_time'].min()} to {self.trades_df['sell_time'].max()}")
-
-                print("\n💰 Profit/Loss Statistics (Filtered):")
-                print(f"   Average P/L per trade: {self.trades_df['pnl_pct'].mean():.2f}%")
-                print(f"   Median P/L per trade: {self.trades_df['pnl_pct'].median():.2f}%")
-                print(f"   Best Trade: {self.trades_df['pnl_pct'].max():.2f}%")
-                print(f"   Worst Trade: {self.trades_df['pnl_pct'].min():.2f}%")
-                print(f"   Win Rate: {(self.trades_df['pnl_pct'] > 0).mean() * 100:.1f}%")
-
-                # Calculate and display risk metrics
-                risk_metrics = self.calculate_risk_metrics()
-                print("\n📊 Risk Metrics:")
-                print(f"   Sharpe Ratio: {risk_metrics['sharpe_ratio']:.2f}")
-                print(f"   Max Drawdown: {risk_metrics['max_drawdown']:.2f}%")
-                print(f"   Max Drawdown Duration: {risk_metrics['max_drawdown_duration']:.2f} days")
-
-                print("\n⏰ Hold Time Statistics:")
-                print(f"   Average Hold Time: {self.trades_df['hold_days'].mean():.2f} days")
-                print(f"   Median Hold Time: {self.trades_df['hold_days'].median():.2f} days")
-                print(f"   Shortest Hold: {self.trades_df['hold_seconds'].min() / 60:.1f} minutes")
-                print(f"   Longest Hold: {self.trades_df['hold_days'].max():.1f} days")
-        else:
-            print("\n⚠️ No matched trades found")
-            print("   Raw transaction count:", len(self.bot_txs))
-        
-        if not self.latency_df.empty:
-            print("\n⚡ Copy Latency Statistics:")
-            print(f"   Average Slot Latency: {self.latency_df['slot_latency'].mean():.1f} slots")
-            print(f"   Median Slot Latency: {self.latency_df['slot_latency'].median():.0f} slots")
-            print(f"   Average Time Latency: {self.latency_df['time_latency'].mean():.1f} seconds")
-            print(f"   Fastest Copy: {self.latency_df['slot_latency'].min()} slots")
-            print(f"   Slowest Copy: {self.latency_df['slot_latency'].max()} slots")
-            
-            #Estimate latency in milliseconds (Solana slot time ~400ms)
-            avg_ms = self.latency_df['slot_latency'].mean() * 400
-            print(f"   Estimated Avg Latency: ~{avg_ms:.0f}ms")
-    
     def _add_trade_table(self, ax):
-        """Add a detailed trade table to the plot"""
+        """
+        Add a detailed trade table to a matplotlib axis
+
+        Args:
+            ax: Matplotlib axis to draw the table on
+        """
 
         ax.axis('off')
 
@@ -825,42 +1039,15 @@ class SolanaCopyTradingAnalyzer:
 
         ax.set_title('Recent Matched Trades (Latest 15)', fontsize=12, fontweight='bold', pad=10)
 
-    def plot_results(self, figsize=(20, 14)):
-        """Create visualizations with tabbed interface"""
-
-        if self.trades_df.empty and self.latency_df.empty:
-            print("❌ No data to plot")
-            return
-
-        #Determine what data we have
-        has_trades = not self.trades_df.empty
-        has_latency = not self.latency_df.empty
-
-        #Create output widgets for each tab
-        graphs_output = widgets.Output()
-        table_output = widgets.Output()
-
-        #Create the graphs tab
-        with graphs_output:
-            self._plot_graphs(has_trades, has_latency, figsize)
-
-        #Create the table tab
-        with table_output:
-            if has_trades:
-                self._plot_table()
-            else:
-                print("No trade data available for table")
-
-        #Create tab widget
-        tab = widgets.Tab(children=[graphs_output, table_output])
-        tab.set_title(0, 'Performance Graphs')
-        tab.set_title(1, 'Trade Details')
-
-        #Display the tabbed interface
-        display(tab)
-
     def _plot_graphs(self, has_trades, has_latency, figsize):
-        """Create the performance graphs"""
+        """
+        Create the performance graphs including P/L distribution, win/loss ratio, etc.
+
+        Args:
+            has_trades: Boolean indicating if trade data is available
+            has_latency: Boolean indicating if latency data is available
+            figsize: Tuple of (width, height) for figure size in inches
+        """
 
         #Create figure with GridSpec for flexible layout
         if has_trades and has_latency:
@@ -951,7 +1138,9 @@ class SolanaCopyTradingAnalyzer:
         plt.show()
 
     def _plot_table(self):
-        """Create a separate figure for the detailed trade table"""
+        """
+        Create a separate figure for the detailed trade table showing recent trades
+        """
 
         fig, ax = plt.subplots(figsize=(20, 10))
         self._add_trade_table(ax)
@@ -961,7 +1150,7 @@ class SolanaCopyTradingAnalyzer:
         plt.tight_layout()
         plt.show()
 
-    def calculate_risk_metrics(self) -> Dict[str, float]:
+    def _calculate_risk_metrics(self) -> Dict[str, float]:
         """
         Calculate Sharpe ratio and max drawdown from trades
 
@@ -1037,7 +1226,13 @@ class SolanaCopyTradingAnalyzer:
             'max_drawdown_duration': max_dd_duration
         }
 
-    def filter_outliers_from_trades(self):
+    def _filter_outliers_from_trades(self):
+        """
+        Filter extreme outliers from trades based on P/L percentage thresholds
+
+        Removes trades outside the range defined by MIN_PNL_PCT and MAX_PNL_PCT
+        to prevent skewed statistics from data errors or extreme edge cases
+        """
 
         #Filter outliers based on P/L percentage
         original_count = len(self.trades_df)
