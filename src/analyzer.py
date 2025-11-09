@@ -135,6 +135,7 @@ class SolanaCopyTradingAnalyzer:
         - Profit/loss statistics (mean, median, win rate)
         - Risk metrics (Sharpe ratio, drawdown, draw-up)
         - Hold time statistics
+        - Exit behavior (dump aggressiveness, sell fragmentation)
         - Copy latency statistics (if target wallet provided)
         """
 
@@ -172,6 +173,19 @@ class SolanaCopyTradingAnalyzer:
                 print(f"   Median Hold Time: {self.trades_df['hold_days'].median():.2f} days")
                 print(f"   Shortest Hold: {self.trades_df['hold_seconds'].min() / 60:.1f} minutes")
                 print(f"   Longest Hold: {self.trades_df['hold_days'].max():.1f} days")
+
+                print("\n🔄 Exit Behavior:")
+                print(f"   Average Largest Sell: {self.trades_df['largest_sell_pct'].mean():.1f}% of position")
+                print(f"   Median Largest Sell: {self.trades_df['largest_sell_pct'].median():.1f}% of position")
+                print(f"   Average Sells per Token: {self.trades_df['num_sells'].mean():.1f}")
+
+                # Categorize exit behavior
+                instant_dumps = (self.trades_df['largest_sell_pct'] == 100).sum()
+                partial_exits = ((self.trades_df['largest_sell_pct'] >= 50) & (self.trades_df['largest_sell_pct'] < 100)).sum()
+                gradual_exits = (self.trades_df['largest_sell_pct'] < 50).sum()
+                print(f"   Instant Dumps (100%): {instant_dumps} ({instant_dumps/len(self.trades_df)*100:.1f}%)")
+                print(f"   Partial Exits (50-99%): {partial_exits} ({partial_exits/len(self.trades_df)*100:.1f}%)")
+                print(f"   Gradual Exits (<50%): {gradual_exits} ({gradual_exits/len(self.trades_df)*100:.1f}%)")
         else:
             print("\n⚠️ No matched trades found")
             print("   Raw transaction count:", len(self.bot_txs))
@@ -755,9 +769,10 @@ class SolanaCopyTradingAnalyzer:
             List of matched trade pairs with P/L calculations
         """
         print('Match buy and sell trades to calculate P/L')
-        
+
         matched = []
         token_positions = {}
+        token_sell_stats = {}  # Track sell behavior per token
         
         #Sort trades by timestamp
         trades_sorted = sorted(trades, key=lambda x: x.get('timestamp', 0))
@@ -819,6 +834,19 @@ class SolanaCopyTradingAnalyzer:
 
                 print(len(token_positions))
         
+        #Calculate sell statistics per token before matching
+        for token, data in token_positions.items():
+            sells = data['sells']
+            if sells:
+                sell_amounts = [s['amount'] for s in sells]
+                total_sold = sum(sell_amounts)
+                largest_sell = max(sell_amounts) if sell_amounts else 0
+
+                token_sell_stats[token] = {
+                    'num_sells': len(sells),
+                    'largest_sell_pct': (largest_sell / total_sold * 100) if total_sold > 0 else 0
+                }
+
         #Match buys and sells (FIFO)
         for token, data in token_positions.items():
             buys = data['buys']
@@ -856,6 +884,9 @@ class SolanaCopyTradingAnalyzer:
                             if cost_per_token > 0:
                                 pnl_pct = ((proceeds_per_token / cost_per_token) - 1) * 100
 
+                    # Add sell statistics for this token
+                    sell_stats = token_sell_stats.get(token, {'num_sells': 0, 'largest_sell_pct': 0})
+
                     trade_match = {
                         'token': data['symbol'],
                         'token_address': token[:8] + '...' + token[-6:],
@@ -878,7 +909,9 @@ class SolanaCopyTradingAnalyzer:
                         'profit': profit,
                         'cost_token': buy.get('cost_token', 'Unknown'),
                         'proceeds_token': sell.get('proceeds_token', 'Unknown'),
-                        'pnl_pct': pnl_pct
+                        'pnl_pct': pnl_pct,
+                        'num_sells': sell_stats['num_sells'],
+                        'largest_sell_pct': sell_stats['largest_sell_pct']
                     }
 
                     #Debug: Flag trades with suspiciously high PnL
