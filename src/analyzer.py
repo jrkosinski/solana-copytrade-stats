@@ -135,6 +135,7 @@ class SolanaCopyTradingAnalyzer:
         - Profit/loss statistics (mean, median, win rate)
         - Risk metrics (Sharpe ratio, drawdown, draw-up)
         - Hold time statistics
+        - Entry behavior (buy aggressiveness, buy fragmentation)
         - Exit behavior (dump aggressiveness, sell fragmentation)
         - Copy latency statistics (if target wallet provided)
         """
@@ -173,6 +174,19 @@ class SolanaCopyTradingAnalyzer:
                 print(f"   Median Hold Time: {self.trades_df['hold_days'].median():.2f} days")
                 print(f"   Shortest Hold: {self.trades_df['hold_seconds'].min() / 60:.1f} minutes")
                 print(f"   Longest Hold: {self.trades_df['hold_days'].max():.1f} days")
+
+                print("\n📥 Entry Behavior:")
+                print(f"   Average Largest Buy: {self.trades_df['largest_buy_pct'].mean():.1f}% of position")
+                print(f"   Median Largest Buy: {self.trades_df['largest_buy_pct'].median():.1f}% of position")
+                print(f"   Average Buys per Token: {self.trades_df['num_buys'].mean():.1f}")
+
+                # Categorize entry behavior
+                instant_buys = (self.trades_df['largest_buy_pct'] == 100).sum()
+                partial_entries = ((self.trades_df['largest_buy_pct'] >= 50) & (self.trades_df['largest_buy_pct'] < 100)).sum()
+                gradual_entries = (self.trades_df['largest_buy_pct'] < 50).sum()
+                print(f"   Instant Buy-ins (100%): {instant_buys} ({instant_buys/len(self.trades_df)*100:.1f}%)")
+                print(f"   Partial Entries (50-99%): {partial_entries} ({partial_entries/len(self.trades_df)*100:.1f}%)")
+                print(f"   Gradual Entries (<50%): {gradual_entries} ({gradual_entries/len(self.trades_df)*100:.1f}%)")
 
                 print("\n🔄 Exit Behavior:")
                 print(f"   Average Largest Sell: {self.trades_df['largest_sell_pct'].mean():.1f}% of position")
@@ -834,18 +848,38 @@ class SolanaCopyTradingAnalyzer:
 
                 print(len(token_positions))
         
-        #Calculate sell statistics per token before matching
+        #Calculate buy and sell statistics per token before matching
         for token, data in token_positions.items():
+            buys = data['buys']
             sells = data['sells']
+
+            # Buy statistics
+            if buys:
+                buy_amounts = [b['amount'] for b in buys]
+                total_bought = sum(buy_amounts)
+                largest_buy = max(buy_amounts) if buy_amounts else 0
+
+                token_sell_stats[token] = {
+                    'num_buys': len(buys),
+                    'largest_buy_pct': (largest_buy / total_bought * 100) if total_bought > 0 else 0
+                }
+            else:
+                token_sell_stats[token] = {
+                    'num_buys': 0,
+                    'largest_buy_pct': 0
+                }
+
+            # Sell statistics
             if sells:
                 sell_amounts = [s['amount'] for s in sells]
                 total_sold = sum(sell_amounts)
                 largest_sell = max(sell_amounts) if sell_amounts else 0
 
-                token_sell_stats[token] = {
-                    'num_sells': len(sells),
-                    'largest_sell_pct': (largest_sell / total_sold * 100) if total_sold > 0 else 0
-                }
+                token_sell_stats[token]['num_sells'] = len(sells)
+                token_sell_stats[token]['largest_sell_pct'] = (largest_sell / total_sold * 100) if total_sold > 0 else 0
+            else:
+                token_sell_stats[token]['num_sells'] = 0
+                token_sell_stats[token]['largest_sell_pct'] = 0
 
         #Match buys and sells (FIFO)
         for token, data in token_positions.items():
@@ -884,8 +918,11 @@ class SolanaCopyTradingAnalyzer:
                             if cost_per_token > 0:
                                 pnl_pct = ((proceeds_per_token / cost_per_token) - 1) * 100
 
-                    # Add sell statistics for this token
-                    sell_stats = token_sell_stats.get(token, {'num_sells': 0, 'largest_sell_pct': 0})
+                    # Add buy and sell statistics for this token
+                    stats = token_sell_stats.get(token, {
+                        'num_buys': 0, 'largest_buy_pct': 0,
+                        'num_sells': 0, 'largest_sell_pct': 0
+                    })
 
                     trade_match = {
                         'token': data['symbol'],
@@ -910,8 +947,10 @@ class SolanaCopyTradingAnalyzer:
                         'cost_token': buy.get('cost_token', 'Unknown'),
                         'proceeds_token': sell.get('proceeds_token', 'Unknown'),
                         'pnl_pct': pnl_pct,
-                        'num_sells': sell_stats['num_sells'],
-                        'largest_sell_pct': sell_stats['largest_sell_pct']
+                        'num_buys': stats['num_buys'],
+                        'largest_buy_pct': stats['largest_buy_pct'],
+                        'num_sells': stats['num_sells'],
+                        'largest_sell_pct': stats['largest_sell_pct']
                     }
 
                     #Debug: Flag trades with suspiciously high PnL
@@ -1040,18 +1079,19 @@ class SolanaCopyTradingAnalyzer:
                 f"{row['proceeds']:.3f} {row['proceeds_token']}",
                 f"{profit_sign}{row['profit']:.3f}",
                 f"{pnl_sign}{row['pnl_pct']:.1f}%",
+                f"{row['largest_buy_pct']:.0f}%",
                 f"{row['largest_sell_pct']:.0f}%"
             ])
 
         #Create column headers
-        col_labels = ['Token', 'Sell Time', 'Hold', 'Cost', 'Proceeds', 'Profit', 'P/L %', 'Dump %']
+        col_labels = ['Token', 'Sell Time', 'Hold', 'Cost', 'Proceeds', 'Profit', 'P/L %', 'Buy %', 'Dump %']
 
         #Create the table
         table = ax.table(cellText=table_data,
                         colLabels=col_labels,
                         cellLoc='left',
                         loc='center',
-                        colWidths=[0.13, 0.11, 0.07, 0.16, 0.16, 0.11, 0.09, 0.08])
+                        colWidths=[0.12, 0.10, 0.06, 0.15, 0.15, 0.10, 0.08, 0.07, 0.07])
 
         #Style the table
         table.auto_set_font_size(False)
