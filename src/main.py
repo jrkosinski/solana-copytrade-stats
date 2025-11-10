@@ -80,8 +80,8 @@ def full_analyses(main_wallets):
     for wallet in main_wallets: 
         full_solana_analysis(wallet, None, os.getenv('HELIUS_API_KEY'), 1000, max_trades=150)
 
-full_solana_analysis("9EibckQ6Jdfnhb4uAG352KaepYXspRrcNwFjC7xkvRXx", 
-    "FPAeapSTb5H33Jmm2cZXEJhBP2MdHYgoecxTmChHrocV", 
+full_solana_analysis("4BdKaxN8G6ka4GYtQQWk4G4dZRUTX2vQH9GcXdBREFUk", 
+    None, 
     os.getenv('HELIUS_API_KEY'), 1000, max_trades=150)
 
 

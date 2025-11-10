@@ -29,23 +29,30 @@ class SolanaCopyTradingAnalyzer:
                  rpc_url: str = "https://api.mainnet-beta.solana.com",
                  helius_api_key: str = None,
                  shyft_api_key: str = None,
-                 filter_outliers: bool = False):
+                 filter_outliers: bool = False,
+                 filter_to_matched_only: bool = True):
         """
         Initialize the Solana analyzer
-        
+
         Args:
             main_wallet: The copy-trading bot wallet address
             target_wallet: The wallet being copied (optional)
             rpc_url: Solana RPC endpoint
             helius_api_key: Helius API key for enhanced data (optional)
             shyft_api_key: Shyft API key for transaction parsing (optional)
+            filter_outliers: If True, filter extreme P/L outliers from analysis
+            filter_to_matched_only: If True and target_wallet provided, only analyze trades that matched between main and target
         """
         self.main_wallet = main_wallet
         self.target_wallet = target_wallet
         self.rpc_url = rpc_url
         self.helius_api_key = helius_api_key
         self.shyft_api_key = shyft_api_key
-        self._filter_outliers = filter_outliers
+        self.filter_outliers = filter_outliers
+        self.filter_to_matched_only = filter_to_matched_only
+
+        if not self.target_wallet:
+            self.filter_to_matched_only = False
 
         print(f"Helius API KEY IS {helius_api_key}")
         print(f"=====================================")
@@ -108,10 +115,10 @@ class SolanaCopyTradingAnalyzer:
         if self.target_wallet:
             print(f"\n⚡ Fetching target wallet trades...")
             target_txs = self._fetch_trades(self.target_wallet, limit)
-            
+
             print("📊 Calculating copy latency...")
             latency_data = self._calculate_latency(self.bot_txs, target_txs)
-            
+
             if latency_data:
                 self.latency_df = pd.DataFrame(latency_data)
                 print(f"   Calculated latency for {len(latency_data)} trades")
@@ -119,9 +126,36 @@ class SolanaCopyTradingAnalyzer:
                 self.latency_df = pd.DataFrame()
         else:
             self.latency_df = pd.DataFrame()
-        
+
+        #Filter to matched trades only if requested
+        if self.filter_to_matched_only and self.target_wallet and not self.latency_df.empty and not self.trades_df.empty:
+            original_count = len(self.trades_df)
+
+            #Get set of matched token symbols from latency data
+            matched_tokens = set(self.latency_df['token'].unique())
+
+            #Debug: Show what we're filtering
+            print(f"\n🔍 DEBUG: Matched tokens from latency: {matched_tokens}")
+            print(f"🔍 DEBUG: Unique tokens in trades_df: {set(self.trades_df['token'].unique())}")
+
+            #Filter trades_df to only include tokens that were matched
+            self.trades_df = self.trades_df[self.trades_df['token'].isin(matched_tokens)].copy()
+
+            filtered_count = len(self.trades_df)
+
+            if filtered_count == 0:
+                print(f"\n⚠️ WARNING: filter_to_matched_only removed all trades!")
+                print(f"   This might indicate a token symbol mismatch between latency matching and trade matching.")
+                print(f"   Keeping all {original_count} trades for analysis.")
+                # Reload the original trades_df
+                self.trades_df = pd.DataFrame(self.trades)
+            else:
+                print(f"\n🔍 Filtered to Matched Trades Only:")
+                print(f"   Kept {filtered_count} of {original_count} trades that matched with target wallet")
+                print(f"   Excluded {original_count - filtered_count} unmatched trades")
+
         #filter outliers
-        if (self._filter_outliers):
+        if (self.filter_outliers):
             self._filter_outliers_from_trades()
 
         return self.trades_df
@@ -206,15 +240,34 @@ class SolanaCopyTradingAnalyzer:
         
         if not self.latency_df.empty:
             print("\n⚡ Copy Latency Statistics:")
-            print(f"   Average Slot Latency: {self.latency_df['slot_latency'].mean():.1f} slots")
+            print(f"   Total Matched Swaps: {len(self.latency_df)}")
+
+            # Count by direction
+            buys = len(self.latency_df[self.latency_df['direction'] == 'BUY'])
+            sells = len(self.latency_df[self.latency_df['direction'] == 'SELL'])
+            print(f"   Matched Buys: {buys}")
+            print(f"   Matched Sells: {sells}")
+
+            print(f"\n   Average Slot Latency: {self.latency_df['slot_latency'].mean():.1f} slots")
             print(f"   Median Slot Latency: {self.latency_df['slot_latency'].median():.0f} slots")
             print(f"   Average Time Latency: {self.latency_df['time_latency'].mean():.1f} seconds")
             print(f"   Fastest Copy: {self.latency_df['slot_latency'].min()} slots")
             print(f"   Slowest Copy: {self.latency_df['slot_latency'].max()} slots")
-            
+
             #Estimate latency in milliseconds (Solana slot time ~400ms)
             avg_ms = self.latency_df['slot_latency'].mean() * 400
             print(f"   Estimated Avg Latency: ~{avg_ms:.0f}ms")
+
+            # Detailed breakdown of matched trades
+            print("\n📋 Matched Trade Details:")
+            for idx, row in self.latency_df.iterrows():
+                direction_emoji = "🟢" if row['direction'] == 'BUY' else "🔴"
+                print(f"\n   {direction_emoji} {row['direction']} {row['token']}")
+                print(f"      Bot Signature:    {row['bot_sig']}")
+                print(f"      Target Signature: {row['target_sig']}")
+                print(f"      Slot Latency:     {row['slot_latency']} slots ({row['time_latency']:.1f}s)")
+                print(f"      Bot Slot:         {row['bot_slot']}")
+                print(f"      Target Slot:      {row['target_slot']}")
     
     def plot_results(self, figsize=(20, 14), save_plots=False):
         """
@@ -694,7 +747,7 @@ class SolanaCopyTradingAnalyzer:
             
             if tx:
                 #Parse swap
-                swap = self.parse_jupiter_swap(tx)
+                swap = self._parse_jupiter_swap(tx)
                 
                 if swap:
                     trade = {
@@ -1039,15 +1092,16 @@ class SolanaCopyTradingAnalyzer:
             # Try matching as a BUY (bot buying token_out)
             if buy_key in target_by_token_direction:
                 #Find closest preceding target trade within time window
+                # IMPORTANT: Filter by slot, not timestamp, to ensure target came first
                 target_candidates = [
                     t for t in target_by_token_direction[buy_key]
-                    if t['timestamp'] <= bot_trade['timestamp']
+                    if t['slot'] < bot_trade['slot']  # Target must be in earlier slot
                     and (bot_trade['timestamp'] - t['timestamp']) <= MAX_TIME_WINDOW
                 ]
 
                 if target_candidates:
-                    # Find the closest match
-                    target_trade = max(target_candidates, key=lambda x: x['timestamp'])
+                    # Find the closest match (by slot, which is most accurate)
+                    target_trade = max(target_candidates, key=lambda x: x['slot'])
 
                     slot_latency = bot_trade['slot'] - target_trade['slot']
                     time_latency = bot_trade['timestamp'] - target_trade['timestamp']
@@ -1069,14 +1123,16 @@ class SolanaCopyTradingAnalyzer:
 
             # Try matching as a SELL (bot selling token_in)
             if not matched and sell_key in target_by_token_direction:
+                # IMPORTANT: Filter by slot, not timestamp, to ensure target came first
                 target_candidates = [
                     t for t in target_by_token_direction[sell_key]
-                    if t['timestamp'] <= bot_trade['timestamp']
+                    if t['slot'] < bot_trade['slot']  # Target must be in earlier slot
                     and (bot_trade['timestamp'] - t['timestamp']) <= MAX_TIME_WINDOW
                 ]
 
                 if target_candidates:
-                    target_trade = max(target_candidates, key=lambda x: x['timestamp'])
+                    # Find the closest match (by slot, which is most accurate)
+                    target_trade = max(target_candidates, key=lambda x: x['slot'])
 
                     slot_latency = bot_trade['slot'] - target_trade['slot']
                     time_latency = bot_trade['timestamp'] - target_trade['timestamp']
