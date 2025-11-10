@@ -25,7 +25,7 @@ class SolanaCopyTradingAnalyzer:
     MAX_PNL_PCT = 50000.0   #Exclude trades with profit > 50000%
     MIN_PNL_PCT = -80.0   #Exclude trades with loss < -80%
 
-    def __init__(self, bot_wallet: str, target_wallet: str = None,
+    def __init__(self, main_wallet: str, target_wallet: str = None,
                  rpc_url: str = "https://api.mainnet-beta.solana.com",
                  helius_api_key: str = None,
                  shyft_api_key: str = None,
@@ -34,13 +34,13 @@ class SolanaCopyTradingAnalyzer:
         Initialize the Solana analyzer
         
         Args:
-            bot_wallet: The copy-trading bot wallet address
+            main_wallet: The copy-trading bot wallet address
             target_wallet: The wallet being copied (optional)
             rpc_url: Solana RPC endpoint
             helius_api_key: Helius API key for enhanced data (optional)
             shyft_api_key: Shyft API key for transaction parsing (optional)
         """
-        self.bot_wallet = bot_wallet
+        self.main_wallet = main_wallet
         self.target_wallet = target_wallet
         self.rpc_url = rpc_url
         self.helius_api_key = helius_api_key
@@ -87,11 +87,11 @@ class SolanaCopyTradingAnalyzer:
         """
         
         print(f"🚀 Analyzing Solana Copy-Trading Bot")
-        print(f"   Bot Wallet: {self.bot_wallet}")
+        print(f"   Bot Wallet: {self.main_wallet}")
         print("=" * 80)
         
         #Fetch bot trades
-        self.bot_txs = self._fetch_trades(self.bot_wallet, limit, max_trades)
+        self.bot_txs = self._fetch_trades(self.main_wallet, limit, max_trades)
         
         #Match trades for P/L
         print(f"\n💰 Matching trades for P/L calculation out of {len(self.bot_txs)} txs...")
@@ -216,12 +216,13 @@ class SolanaCopyTradingAnalyzer:
             avg_ms = self.latency_df['slot_latency'].mean() * 400
             print(f"   Estimated Avg Latency: ~{avg_ms:.0f}ms")
     
-    def plot_results(self, figsize=(20, 14)):
+    def plot_results(self, figsize=(20, 14), save_plots=False):
         """
         Create visualizations with tabbed interface for Jupyter notebooks
 
         Args:
             figsize: Tuple of (width, height) for figure size in inches
+            save_plots: If True, save plots as PNG files to ./plots/ directory
         """
 
         if self.trades_df.empty and self.latency_df.empty:
@@ -238,12 +239,12 @@ class SolanaCopyTradingAnalyzer:
 
         #Create the graphs tab
         with graphs_output:
-            self._plot_graphs(has_trades, has_latency, figsize)
+            self._plot_graphs(has_trades, has_latency, figsize, save_plots)
 
         #Create the table tab
         with table_output:
             if has_trades:
-                self._plot_table()
+                self._plot_table(save_plots)
             else:
                 print("No trade data available for table")
 
@@ -469,9 +470,9 @@ class SolanaCopyTradingAnalyzer:
 
             # Fetch fresh data
             if self.helius_api_key:
-                self.bot_txs = self._fetch_trades_helius(self.bot_wallet, limit, max_trades=max_trades)
+                self.bot_txs = self._fetch_trades_helius(self.main_wallet, limit, max_trades=max_trades)
             else:
-                self.bot_txs = self._fetch_trades_basic(self.bot_wallet, limit)
+                self.bot_txs = self._fetch_trades_basic(self.main_wallet, limit)
 
             # Write to cache file
             self._write_to_trades_cache(wallet)
@@ -990,51 +991,105 @@ class SolanaCopyTradingAnalyzer:
         Returns:
             List of dictionaries with latency metrics (slot and time differences)
         """
-        
+
         latency_data = []
-        
-        #Create lookup by token and timestamp
-        target_by_token = {}
+
+        # Maximum time window for matching trades (5 minutes = 300 seconds)
+        MAX_TIME_WINDOW = 300
+
+        #Create lookup by token with trade direction
+        target_by_token_direction = {}
         for trade in target_trades:
-            token_key = trade.get('token_out', trade.get('token_in', ''))
-            
-            if token_key not in target_by_token:
-                target_by_token[token_key] = []
-            target_by_token[token_key].append(trade)
-        
+            # Determine trade direction: buying token_out, selling token_in
+            token_bought = trade.get('token_out', '')
+            token_sold = trade.get('token_in', '')
+
+            # Key format: "token_address:BUY" or "token_address:SELL"
+            buy_key = f"{token_bought}:BUY"
+            sell_key = f"{token_sold}:SELL"
+
+            if buy_key not in target_by_token_direction:
+                target_by_token_direction[buy_key] = []
+            if sell_key not in target_by_token_direction:
+                target_by_token_direction[sell_key] = []
+
+            target_by_token_direction[buy_key].append(trade)
+            target_by_token_direction[sell_key].append(trade)
+
         #Match bot trades to target trades
         for bot_trade in bot_trades:
-            token_key = bot_trade.get('token_out', bot_trade.get('token_in', ''))
-            
-            if token_key in target_by_token:
-                #Find closest preceding target trade
+            token_bought = bot_trade.get('token_out', '')
+            token_sold = bot_trade.get('token_in', '')
+
+            # Try to match as a buy first
+            buy_key = f"{token_bought}:BUY"
+            sell_key = f"{token_sold}:SELL"
+
+            matched = False
+
+            # Try matching as a BUY (bot buying token_out)
+            if buy_key in target_by_token_direction:
+                #Find closest preceding target trade within time window
                 target_candidates = [
-                    t for t in target_by_token[token_key]
+                    t for t in target_by_token_direction[buy_key]
                     if t['timestamp'] <= bot_trade['timestamp']
+                    and (bot_trade['timestamp'] - t['timestamp']) <= MAX_TIME_WINDOW
                 ]
-                
+
                 if target_candidates:
+                    # Find the closest match
                     target_trade = max(target_candidates, key=lambda x: x['timestamp'])
-                    
+
                     slot_latency = bot_trade['slot'] - target_trade['slot']
                     time_latency = bot_trade['timestamp'] - target_trade['timestamp']
 
-                    print(f"SLOT LATENCY for {token_key}: {slot_latency}")
-                    print(f"TIME LATENCY for {token_key}: {time_latency}")
-                    
+                    print(f"BUY MATCH - SLOT LATENCY for {bot_trade.get('token_out_symbol', 'Unknown')}: {slot_latency} slots ({time_latency}s)")
+
                     latency_data.append({
-                        'token': bot_trade.get('token_out_symbol', bot_trade.get('token_in_symbol', 'Unknown')),
+                        'token': bot_trade.get('token_out_symbol', 'Unknown'),
+                        'direction': 'BUY',
                         'bot_sig': bot_trade['signature'][:8] + '...',
                         'target_sig': target_trade['signature'][:8] + '...',
                         'bot_slot': bot_trade['slot'],
                         'target_slot': target_trade['slot'],
                         'slot_latency': slot_latency,
                         'time_latency': time_latency,
-                        'time_latency_ms': time_latency * 1000  #Convert to milliseconds
+                        'time_latency_ms': time_latency * 1000
                     })
-            else: 
-                print(f'TRADE {token_key} NOT FOUND')
-        
+                    matched = True
+
+            # Try matching as a SELL (bot selling token_in)
+            if not matched and sell_key in target_by_token_direction:
+                target_candidates = [
+                    t for t in target_by_token_direction[sell_key]
+                    if t['timestamp'] <= bot_trade['timestamp']
+                    and (bot_trade['timestamp'] - t['timestamp']) <= MAX_TIME_WINDOW
+                ]
+
+                if target_candidates:
+                    target_trade = max(target_candidates, key=lambda x: x['timestamp'])
+
+                    slot_latency = bot_trade['slot'] - target_trade['slot']
+                    time_latency = bot_trade['timestamp'] - target_trade['timestamp']
+
+                    print(f"SELL MATCH - SLOT LATENCY for {bot_trade.get('token_in_symbol', 'Unknown')}: {slot_latency} slots ({time_latency}s)")
+
+                    latency_data.append({
+                        'token': bot_trade.get('token_in_symbol', 'Unknown'),
+                        'direction': 'SELL',
+                        'bot_sig': bot_trade['signature'][:8] + '...',
+                        'target_sig': target_trade['signature'][:8] + '...',
+                        'bot_slot': bot_trade['slot'],
+                        'target_slot': target_trade['slot'],
+                        'slot_latency': slot_latency,
+                        'time_latency': time_latency,
+                        'time_latency_ms': time_latency * 1000
+                    })
+                    matched = True
+
+            if not matched:
+                print(f'NO MATCH FOUND for {bot_trade.get("token_out_symbol", "?")} / {bot_trade.get("token_in_symbol", "?")}')
+
         return latency_data
     
     def _add_trade_table(self, ax):
@@ -1115,7 +1170,7 @@ class SolanaCopyTradingAnalyzer:
 
         ax.set_title('Recent Matched Trades (Latest 15)', fontsize=12, fontweight='bold', pad=10)
 
-    def _plot_graphs(self, has_trades, has_latency, figsize):
+    def _plot_graphs(self, has_trades, has_latency, figsize, save_plots=False):
         """
         Create the performance graphs including P/L distribution, win/loss ratio, etc.
 
@@ -1123,6 +1178,7 @@ class SolanaCopyTradingAnalyzer:
             has_trades: Boolean indicating if trade data is available
             has_latency: Boolean indicating if latency data is available
             figsize: Tuple of (width, height) for figure size in inches
+            save_plots: If True, save the plot as a PNG file
         """
 
         #Create figure with GridSpec for flexible layout
@@ -1208,22 +1264,59 @@ class SolanaCopyTradingAnalyzer:
             ax.set_ylabel('Frequency')
             ax.legend()
 
-        plt.suptitle(f'Solana Copy-Trading Bot Analysis\n{self.bot_wallet[:8]}...{self.bot_wallet[-6:]}',
-                    fontsize=14, fontweight='bold', y=0.995)
+        # Create title with target wallet if specified
+        title = f'Solana Copy-Trading Bot Analysis\n{self.main_wallet[:8]}...{self.main_wallet[-6:]}'
+        if self.target_wallet:
+            title += f'\nvs. {self.target_wallet[:8]}...{self.target_wallet[-6:]}'
+
+        plt.suptitle(title, fontsize=14, fontweight='bold', y=0.995)
         plt.tight_layout()
+
+        # Save plot if requested
+        if save_plots:
+            # Create plots directory if it doesn't exist
+            os.makedirs('./plots', exist_ok=True)
+
+            # Generate filename with timestamp
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f"./plots/analysis_graphs_{self.main_wallet[:8]}_{timestamp}.png"
+
+            plt.savefig(filename, dpi=300, bbox_inches='tight')
+            print(f"📊 Performance graphs saved to {filename}")
+
         plt.show()
 
-    def _plot_table(self):
+    def _plot_table(self, save_plots=False):
         """
         Create a separate figure for the detailed trade table showing recent trades
+
+        Args:
+            save_plots: If True, save the table as a PNG file
         """
 
         fig, ax = plt.subplots(figsize=(20, 10))
         self._add_trade_table(ax)
 
-        plt.suptitle(f'Trade Details - {self.bot_wallet[:8]}...{self.bot_wallet[-6:]}',
-                    fontsize=14, fontweight='bold', y=0.995)
+        # Create title with target wallet if specified
+        title = f'Trade Details - {self.main_wallet[:8]}...{self.main_wallet[-6:]}'
+        if self.target_wallet:
+            title += f'\nvs. {self.target_wallet[:8]}...{self.target_wallet[-6:]}'
+
+        plt.suptitle(title, fontsize=14, fontweight='bold', y=0.995)
         plt.tight_layout()
+
+        # Save plot if requested
+        if save_plots:
+            # Create plots directory if it doesn't exist
+            os.makedirs('./plots', exist_ok=True)
+
+            # Generate filename with timestamp
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f"./plots/trade_table_{self.main_wallet[:8]}_{timestamp}.png"
+
+            plt.savefig(filename, dpi=300, bbox_inches='tight')
+            print(f"📋 Trade table saved to {filename}")
+
         plt.show()
 
     def _calculate_risk_metrics(self) -> Dict[str, float]:
