@@ -231,6 +231,31 @@ analyzer.generate_report()
 analyzer.plot_results()
 ```
 
+### Copy-Trading Analysis with Target Wallet
+
+When analyzing a copy-trading bot, you can compare it against the wallet being copied:
+
+```python
+analyzer = SolanaCopyTradingAnalyzer(
+    main_wallet="YourBotWalletAddress",
+    target_wallet="WalletBeingCopied",
+    helius_api_key=os.getenv('HELIUS_API_KEY'),
+    filter_outliers=True,
+    filter_to_matched_only=True  # Only analyze trades that matched between bot and target
+)
+
+# Run analysis
+trades_df = analyzer.analyze_wallet(limit=1000, max_trades=150)
+
+# View latency statistics
+if not analyzer.latency_df.empty:
+    print(f"Average copy latency: {analyzer.latency_df['slot_latency'].mean():.1f} slots")
+```
+
+**Parameters:**
+- `target_wallet`: The wallet address being copied (optional)
+- `filter_to_matched_only`: When `True`, only analyze trades on tokens that were copied from the target wallet. Useful for focused copy-trading performance analysis. Default: `False`
+
 ### Custom Analysis
 
 ```python
