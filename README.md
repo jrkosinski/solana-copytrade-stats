@@ -5,44 +5,49 @@ A comprehensive performance analysis tool for Solana copy-trading bots. Analyze 
 ## Features
 
 ### Core Functionality
-- **Transaction Parsing**: Fetch and parse swap transactions using Helius API
-- **Trade Matching**: FIFO-based buy/sell matching for accurate P/L calculation
-- **Multi-Wallet Analysis**: Batch analyze multiple bot wallets in one run
-- **Caching System**: Local caching of transaction data for faster re-analysis
+
+-   **Transaction Parsing**: Fetch and parse swap transactions using Helius API
+-   **Trade Matching**: FIFO-based buy/sell matching for accurate P/L calculation
+-   **Multi-Wallet Analysis**: Batch analyze multiple bot wallets in one run
+-   **Caching System**: Local caching of transaction data for faster re-analysis
 
 ### Performance Metrics
-- **Profit/Loss Analysis**: Calculate per-trade and cumulative P/L with percentage returns
-- **Win Rate**: Track winning vs. losing trade ratios
-- **Hold Time Statistics**: Average, median, min/max hold durations
-- **Risk Metrics**:
-  - Annualized Sharpe Ratio
-  - Maximum Drawdown (largest loss from peak)
-  - Maximum Draw-up (largest gain from trough)
-  - Drawdown/Draw-up duration tracking
+
+-   **Profit/Loss Analysis**: Calculate per-trade and cumulative P/L with percentage returns
+-   **Win Rate**: Track winning vs. losing trade ratios
+-   **Hold Time Statistics**: Average, median, min/max hold durations
+-   **Risk Metrics**:
+    -   Annualized Sharpe Ratio
+    -   Maximum Drawdown (largest loss from peak)
+    -   Maximum Draw-up (largest gain from trough)
+    -   Drawdown/Draw-up duration tracking
 
 ### Data Quality
-- **Outlier Filtering**: Configurable P/L percentage thresholds to exclude anomalous trades
-- **Partial Trade Detection**: Identifies and flags mismatched buy/sell amounts
-- **Currency Validation**: Ensures buy and sell use compatible base currencies
+
+-   **Outlier Filtering**: Configurable P/L percentage thresholds to exclude anomalous trades
+-   **Partial Trade Detection**: Identifies and flags mismatched buy/sell amounts
+-   **Currency Validation**: Ensures buy and sell use compatible base currencies
 
 ### Visualization (Jupyter Support)
-- **Interactive Plots**: Tabbed interface with performance graphs and trade tables
-- P/L distribution histograms
-- Win/loss ratio pie charts
-- Cumulative P/L over time
-- Hold time vs. P/L scatter plots
-- Top tokens by average P/L
-- Detailed trade history tables
+
+-   **Interactive Plots**: Tabbed interface with performance graphs and trade tables
+-   P/L distribution histograms
+-   Win/loss ratio pie charts
+-   Cumulative P/L over time
+-   Hold time vs. P/L scatter plots
+-   Top tokens by average P/L
+-   Detailed trade history tables
 
 ### Export Capabilities
-- **CSV Export**: Full trade details with timestamps, amounts, and P/L metrics
-- **Cached Results**: JSON caching for faster subsequent analyses
+
+-   **CSV Export**: Full trade details with timestamps, amounts, and P/L metrics
+-   **Cached Results**: JSON caching for faster subsequent analyses
 
 ## Prerequisites
 
-- Python 3.12+
-- [Helius API Key](https://www.helius.dev/) (required for transaction data)
-- Virtual environment (recommended)
+-   Python 3.12+
+-   [Helius API Key](https://www.helius.dev/) (required for transaction data)
+-   Virtual environment (recommended)
 
 ## Installation
 
@@ -68,12 +73,13 @@ pip install -r requirements.txt
 ```
 
 Key dependencies:
-- `requests` - API communication
-- `pandas` - Data manipulation
-- `numpy` - Statistical calculations
-- `matplotlib`, `seaborn` - Visualization
-- `web3` - Solana blockchain interaction
-- `ipywidgets` - Jupyter notebook interactivity
+
+-   `requests` - API communication
+-   `pandas` - Data manipulation
+-   `numpy` - Statistical calculations
+-   `matplotlib`, `seaborn` - Visualization
+-   `web3` - Solana blockchain interaction
+-   `ipywidgets` - Jupyter notebook interactivity
 
 ### 3. Configure API key
 
@@ -84,6 +90,7 @@ export HELIUS_API_KEY=your_api_key_here
 ```
 
 Or add to `.env` file:
+
 ```
 HELIUS_API_KEY=your_api_key_here
 ```
@@ -97,6 +104,7 @@ HELIUS_API_KEY=your_api_key_here
 ```
 
 Or directly:
+
 ```bash
 python src/main.py
 ```
@@ -138,6 +146,7 @@ limit = 1000      # API request limit per call
 ### Understanding the Output
 
 #### Console Report
+
 ```
 📊 SOLANA COPY-TRADING BOT PERFORMANCE REPORT
 ================================================================================
@@ -165,16 +174,19 @@ limit = 1000      # API request limit per call
 ```
 
 #### CSV Export
+
 Format: `solana_trades_{wallet_first8}_{timestamp}.csv`
 
 Columns include:
-- `token`, `token_address`
-- `buy_time`, `sell_time`, `hold_days`
-- `buy_amount`, `sell_amount`, `cost`, `proceeds`
-- `profit`, `pnl_pct`
-- Transaction signatures and slot numbers
+
+-   `token`, `token_address`
+-   `buy_time`, `sell_time`, `hold_days`
+-   `buy_amount`, `sell_amount`, `cost`, `proceeds`
+-   `profit`, `pnl_pct`
+-   Transaction signatures and slot numbers
 
 #### Cached Data
+
 Location: `cached_results/{wallet_address}.json`
 
 Caches fetched transaction data to avoid repeated API calls.
@@ -204,7 +216,7 @@ from src.analyzer import SolanaCopyTradingAnalyzer
 import os
 
 analyzer = SolanaCopyTradingAnalyzer(
-    bot_wallet="YourWalletAddress",
+    main_wallet="YourWalletAddress",
     helius_api_key=os.getenv('HELIUS_API_KEY'),
     filter_outliers=True
 )
@@ -235,34 +247,38 @@ avg_hold_winners = trades_df[trades_df['pnl_pct'] > 0]['hold_days'].mean()
 ## Supported DEXs
 
 The analyzer currently supports swaps on:
-- Jupiter (v4, v6)
-- Orca (Whirlpool, v2)
-- Raydium (v4, CLMM)
-- Pump.fun
-- Serum v3
+
+-   Jupiter (v4, v6)
+-   Orca (Whirlpool, v2)
+-   Raydium (v4, CLMM)
+-   Pump.fun
+-   Serum v3
 
 ## Known Limitations
 
-- Only analyzes completed trade pairs (matched buys and sells)
-- Requires both buy and sell in the same base currency (SOL/USDC/USDT)
-- Does not track partial position management
-- Copy latency tracking requires target wallet configuration (optional)
+-   Only analyzes completed trade pairs (matched buys and sells)
+-   Requires both buy and sell in the same base currency (SOL/USDC/USDT)
+-   Does not track partial position management
+-   Copy latency tracking requires target wallet configuration (optional)
 
 ## Troubleshooting
 
 ### No matched trades found
-- Check that the wallet has completed buy/sell pairs
-- Verify transactions are SWAP type on supported DEXs
-- Ensure sufficient transaction history (increase `limit` parameter)
+
+-   Check that the wallet has completed buy/sell pairs
+-   Verify transactions are SWAP type on supported DEXs
+-   Ensure sufficient transaction history (increase `limit` parameter)
 
 ### Outlier warnings
-- Adjust `MAX_PNL_PCT` and `MIN_PNL_PCT` in analyzer.py
-- Review flagged trades on [Solscan](https://solscan.io/) for validation
+
+-   Adjust `MAX_PNL_PCT` and `MIN_PNL_PCT` in analyzer.py
+-   Review flagged trades on [Solscan](https://solscan.io/) for validation
 
 ### API rate limits
-- Helius free tier has rate limits
-- Use caching to minimize repeated API calls
-- Consider upgrading Helius plan for high-frequency analysis
+
+-   Helius free tier has rate limits
+-   Use caching to minimize repeated API calls
+-   Consider upgrading Helius plan for high-frequency analysis
 
 ## Contributing
 

@@ -236,6 +236,7 @@ class SolanaCopyTradingAnalyzer:
         #Create output widgets for each tab
         graphs_output = widgets.Output()
         table_output = widgets.Output()
+        behavior_output = widgets.Output()
 
         #Create the graphs tab
         with graphs_output:
@@ -248,10 +249,18 @@ class SolanaCopyTradingAnalyzer:
             else:
                 print("No trade data available for table")
 
+        #Create the behavior tab
+        with behavior_output:
+            if has_trades:
+                self._plot_entry_exit_behavior(figsize, save_plots)
+            else:
+                print("No trade data available for behavior analysis")
+
         #Create tab widget
-        tab = widgets.Tab(children=[graphs_output, table_output])
+        tab = widgets.Tab(children=[graphs_output, table_output, behavior_output])
         tab.set_title(0, 'Performance Graphs')
         tab.set_title(1, 'Trade Details')
+        tab.set_title(2, 'Entry/Exit Behavior')
 
         #Display the tabbed interface
         display(tab)
@@ -1316,6 +1325,123 @@ class SolanaCopyTradingAnalyzer:
 
             plt.savefig(filename, dpi=300, bbox_inches='tight')
             print(f"📋 Trade table saved to {filename}")
+
+        plt.show()
+
+    def _plot_entry_exit_behavior(self, figsize=(20, 14), save_plots=False):
+        """
+        Create detailed visualizations of entry and exit behavior
+
+        Args:
+            figsize: Tuple of (width, height) for figure size in inches
+            save_plots: If True, save the plot as a PNG file
+        """
+
+        # Create figure with 3x2 grid for 6 subplots
+        fig = plt.figure(figsize=(figsize[0], figsize[1] * 0.75))
+        gs = fig.add_gridspec(3, 2, hspace=0.4, wspace=0.3)
+
+        # Calculate statistics
+        avg_buy_pct = self.trades_df['largest_buy_pct'].mean()
+        median_buy_pct = self.trades_df['largest_buy_pct'].median()
+        min_buy_pct = self.trades_df['largest_buy_pct'].min()
+        max_buy_pct = self.trades_df['largest_buy_pct'].max()
+
+        avg_sell_pct = self.trades_df['largest_sell_pct'].mean()
+        median_sell_pct = self.trades_df['largest_sell_pct'].median()
+        min_sell_pct = self.trades_df['largest_sell_pct'].min()
+        max_sell_pct = self.trades_df['largest_sell_pct'].max()
+
+        avg_num_buys = self.trades_df['num_buys'].mean()
+        avg_num_sells = self.trades_df['num_sells'].mean()
+
+        # 1. Largest Buy Percentage Distribution
+        ax1 = fig.add_subplot(gs[0, 0])
+        self.trades_df['largest_buy_pct'].hist(bins=30, ax=ax1, color='skyblue', edgecolor='black')
+        ax1.axvline(avg_buy_pct, color='red', linestyle='--', linewidth=2, label=f'Mean: {avg_buy_pct:.1f}%')
+        ax1.axvline(median_buy_pct, color='orange', linestyle='--', linewidth=2, label=f'Median: {median_buy_pct:.1f}%')
+        ax1.set_title('Entry Aggressiveness Distribution\n(Largest Single Buy as % of Position)', fontsize=10, fontweight='bold')
+        ax1.set_xlabel('Largest Buy (%)')
+        ax1.set_ylabel('Number of Trades')
+        ax1.legend()
+        ax1.text(0.02, 0.98, f'Min: {min_buy_pct:.1f}%\nMax: {max_buy_pct:.1f}%',
+                transform=ax1.transAxes, verticalalignment='top',
+                bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+
+        # 2. Largest Sell Percentage Distribution
+        ax2 = fig.add_subplot(gs[0, 1])
+        self.trades_df['largest_sell_pct'].hist(bins=30, ax=ax2, color='coral', edgecolor='black')
+        ax2.axvline(avg_sell_pct, color='red', linestyle='--', linewidth=2, label=f'Mean: {avg_sell_pct:.1f}%')
+        ax2.axvline(median_sell_pct, color='orange', linestyle='--', linewidth=2, label=f'Median: {median_sell_pct:.1f}%')
+        ax2.set_title('Exit Aggressiveness Distribution\n(Largest Single Sell as % of Position)', fontsize=10, fontweight='bold')
+        ax2.set_xlabel('Largest Sell (%)')
+        ax2.set_ylabel('Number of Trades')
+        ax2.legend()
+        ax2.text(0.02, 0.98, f'Min: {min_sell_pct:.1f}%\nMax: {max_sell_pct:.1f}%',
+                transform=ax2.transAxes, verticalalignment='top',
+                bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+
+        # 3. Number of Buys per Trade
+        ax3 = fig.add_subplot(gs[1, 0])
+        self.trades_df['num_buys'].hist(bins=range(1, int(self.trades_df['num_buys'].max()) + 2),
+                                        ax=ax3, color='lightgreen', edgecolor='black')
+        ax3.axvline(avg_num_buys, color='red', linestyle='--', linewidth=2, label=f'Mean: {avg_num_buys:.1f}')
+        ax3.set_title('Entry Fragmentation\n(Number of Buy Transactions per Token)', fontsize=10, fontweight='bold')
+        ax3.set_xlabel('Number of Buys')
+        ax3.set_ylabel('Number of Trades')
+        ax3.legend()
+
+        # 4. Number of Sells per Trade
+        ax4 = fig.add_subplot(gs[1, 1])
+        self.trades_df['num_sells'].hist(bins=range(1, int(self.trades_df['num_sells'].max()) + 2),
+                                         ax=ax4, color='lightsalmon', edgecolor='black')
+        ax4.axvline(avg_num_sells, color='red', linestyle='--', linewidth=2, label=f'Mean: {avg_num_sells:.1f}')
+        ax4.set_title('Exit Fragmentation\n(Number of Sell Transactions per Token)', fontsize=10, fontweight='bold')
+        ax4.set_xlabel('Number of Sells')
+        ax4.set_ylabel('Number of Trades')
+        ax4.legend()
+
+        # 5. Buy Aggressiveness vs P/L
+        ax5 = fig.add_subplot(gs[2, 0])
+        scatter = ax5.scatter(self.trades_df['largest_buy_pct'], self.trades_df['pnl_pct'],
+                             c=self.trades_df['pnl_pct'], cmap='RdYlGn',
+                             alpha=0.6, edgecolors='black', linewidth=0.5)
+        ax5.axhline(0, color='black', linestyle='-', alpha=0.3)
+        ax5.set_title('Entry Aggressiveness vs P/L', fontsize=10, fontweight='bold')
+        ax5.set_xlabel('Largest Buy (%)')
+        ax5.set_ylabel('P/L (%)')
+        plt.colorbar(scatter, ax=ax5, label='P/L %')
+
+        # 6. Sell Aggressiveness vs P/L
+        ax6 = fig.add_subplot(gs[2, 1])
+        scatter = ax6.scatter(self.trades_df['largest_sell_pct'], self.trades_df['pnl_pct'],
+                             c=self.trades_df['pnl_pct'], cmap='RdYlGn',
+                             alpha=0.6, edgecolors='black', linewidth=0.5)
+        ax6.axhline(0, color='black', linestyle='-', alpha=0.3)
+        ax6.set_title('Exit Aggressiveness vs P/L', fontsize=10, fontweight='bold')
+        ax6.set_xlabel('Largest Sell (%)')
+        ax6.set_ylabel('P/L (%)')
+        plt.colorbar(scatter, ax=ax6, label='P/L %')
+
+        # Create title with target wallet if specified
+        title = f'Entry/Exit Behavior Analysis\n{self.main_wallet[:8]}...{self.main_wallet[-6:]}'
+        if self.target_wallet:
+            title += f'\nvs. {self.target_wallet[:8]}...{self.target_wallet[-6:]}'
+
+        plt.suptitle(title, fontsize=14, fontweight='bold', y=0.995)
+        plt.tight_layout()
+
+        # Save plot if requested
+        if save_plots:
+            # Create plots directory if it doesn't exist
+            os.makedirs('./plots', exist_ok=True)
+
+            # Generate filename with timestamp
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f"./plots/behavior_analysis_{self.main_wallet[:8]}_{timestamp}.png"
+
+            plt.savefig(filename, dpi=300, bbox_inches='tight')
+            print(f"📈 Behavior analysis saved to {filename}")
 
         plt.show()
 
