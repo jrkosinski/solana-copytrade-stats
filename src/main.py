@@ -9,7 +9,6 @@ from analyzer import SolanaCopyTradingAnalyzer, analyze_transaction
 
 def quick_solana_analysis(main_wallet: str, 
                          target_wallet: str = None,
-                         helius_api_key: str = None,
                          limit: int = 1000, 
                          max_trades:int = 100):
     """
@@ -18,12 +17,13 @@ def quick_solana_analysis(main_wallet: str,
     Args:
         main_wallet: Bot wallet address
         target_wallet: Target wallet to compare (optional)
-        helius_api_key: Your Helius API key
     """
     
     print("🚀 Solana Copy-Trading Bot Quick Analysis")
     print("=" * 60)
     
+    helius_api_key = os.getenv('HELIUS_API_KEY')
+
     # Create analyzer
     analyzer = SolanaCopyTradingAnalyzer(
         main_wallet=main_wallet,
@@ -41,7 +41,6 @@ def quick_solana_analysis(main_wallet: str,
 
 def full_solana_analysis(main_wallet: str,
                          target_wallet: str = None,
-                         helius_api_key: str = None,
                          limit: int = 1000,
                          max_trades:int = 100,
                          save_plots: bool = False):
@@ -51,13 +50,12 @@ def full_solana_analysis(main_wallet: str,
     Args:
         main_wallet: Bot wallet address
         target_wallet: Target wallet to compare (optional)
-        helius_api_key: Your Helius API key
         limit: API request limit per call
         max_trades: Maximum number of trades to fetch
         save_plots: If True, save plots as PNG files to ./plots/ directory
     """
 
-    analyzer, trades_df = quick_solana_analysis(main_wallet, target_wallet, helius_api_key, limit, max_trades)
+    analyzer, trades_df = quick_solana_analysis(main_wallet, target_wallet, limit, max_trades)
 
     # Plot if data available
     if not trades_df.empty or not analyzer.latency_df.empty:
@@ -73,50 +71,50 @@ def full_solana_analysis(main_wallet: str,
 
 def quick_analyses(main_wallets): 
     for wallet in main_wallets: 
-        quick_solana_analysis(wallet, None, os.getenv('HELIUS_API_KEY'), 1000, max_trades=150)
+        quick_solana_analysis(wallet, None, 1000, max_trades=150)
 
 
 def full_analyses(main_wallets):
     for wallet in main_wallets:
-        full_solana_analysis(wallet, None, os.getenv('HELIUS_API_KEY'), 1000, max_trades=150)
+        full_solana_analysis(wallet, None, 1000, max_trades=150)
 
-def analyze_tx(signature: str, helius_api_key: str = None):
+def analyze_tx(signature: str):
     """
     Analyze a single transaction signature
 
     Args:
         signature: Transaction signature to analyze
-        helius_api_key: Optional Helius API key (uses env var if not provided)
 
     Returns:
         Dictionary containing transaction analysis
 
     Example:
         analyze_tx("5Jb3...")
-        analyze_tx("5Jb3...", os.getenv('HELIUS_API_KEY'))
     """
-    if helius_api_key is None:
-        helius_api_key = os.getenv('HELIUS_API_KEY')
+    helius_api_key = os.getenv('HELIUS_API_KEY')
 
     return analyze_transaction(signature, helius_api_key)
 
+def analyze_txs(signatures): 
+    for sig in signatures:
+        analyze_tx(sig)
 
 full_analyze = False
 
 if (full_analyze): 
     full_solana_analysis("8deJ9xeUvXSJwicYptA9mHsU2rN2pDx37KWzkDkEXhU6", 
-        None, 
-        os.getenv('HELIUS_API_KEY'), 1000, max_trades=150)
+        None, 1000, max_trades=150)
 
     full_solana_analysis("9EibckQ6Jdfnhb4uAG352KaepYXspRrcNwFjC7xkvRXx", 
-        "8deJ9xeUvXSJwicYptA9mHsU2rN2pDx37KWzkDkEXhU6", 
-        os.getenv('HELIUS_API_KEY'), 1000, max_trades=150)
+        "8deJ9xeUvXSJwicYptA9mHsU2rN2pDx37KWzkDkEXhU6", 1000, max_trades=150)
 
     full_solana_analysis("9EibckQ6Jdfnhb4uAG352KaepYXspRrcNwFjC7xkvRXx", 
-        None, 
-        os.getenv('HELIUS_API_KEY'), 1000, max_trades=150)
+        None, 1000, max_trades=150)
 else:
-    analyze_tx("gn79MPugB7fAGoQ7i2GGdE8wLKRhF2rUobBeUqUYbL1bbZg7GBDdBztf5fN6zPUrkZPMuSe8y8HHP637ax6s5Mp", os.getenv('HELIUS_API_KEY'))
+    analyze_txs([
+        "gn79MPugB7fAGoQ7i2GGdE8wLKRhF2rUobBeUqUYbL1bbZg7GBDdBztf5fN6zPUrkZPMuSe8y8HHP637ax6s5Mp",
+        "5NBGffe8c5cw2Uo15L5vyTFoQ2gXXwUU7pXpc8gFNFv4agAy1m2kehrH6VqNKE8y2F9ZcfUqZmLceFBzWjhLVWnx"
+    ])
 
 
 #full_analyses([

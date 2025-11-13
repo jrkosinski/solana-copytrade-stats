@@ -1671,7 +1671,7 @@ def analyze_transaction(signature: str,
     if helius_api_key:
         result = _analyze_transaction_helius(signature, helius_api_key)
     else:
-        result = _analyze_transaction_rpc(signature, rpc_url)
+        return None
 
     # Print formatted results
     _print_transaction_analysis(result)
@@ -1803,152 +1803,38 @@ def _analyze_transaction_helius(signature: str, helius_api_key: str) -> Dict:
                     ]
                 }
 
-                # Calculate exchange rates
+                # Calculate exchange rates - always show in terms of SOL
                 if len(swap['tokens_sold']) == 1 and len(swap['tokens_bought']) == 1:
                     sold = swap['tokens_sold'][0]
                     bought = swap['tokens_bought'][0]
 
                     if sold['amount'] > 0 and bought['amount'] > 0:
-                        swap['exchange_rate'] = {
-                            'rate': bought['amount'] / sold['amount'],
-                            'description': f"1 {sold['symbol']} = {bought['amount'] / sold['amount']:.8f} {bought['symbol']}"
-                        }
+                        # Identify SOL (can be 'SOL', 'WSOL', or the wrapped SOL mint)
+                        sol_identifiers = ['SOL', 'WSOL', 'So11111111111111111111111111111111111111112']
+                        sold_is_sol = sold['symbol'] in sol_identifiers or sold['mint'] in sol_identifiers
+                        bought_is_sol = bought['symbol'] in sol_identifiers or bought['mint'] in sol_identifiers
 
-                result['swaps'].append(swap)
-
-        return result
-
-    except Exception as e:
-        return {
-            'success': False,
-            'error': f'Error fetching transaction: {str(e)}',
-            'signature': signature
-        }
-
-
-def _analyze_transaction_rpc(signature: str, rpc_url: str) -> Dict:
-    """
-    Analyze transaction using standard RPC endpoint (fallback method)
-
-    Args:
-        signature: Transaction signature hash
-        rpc_url: Solana RPC endpoint
-
-    Returns:
-        Dictionary with transaction analysis
-    """
-
-    print("📡 Fetching transaction via RPC...")
-
-    payload = {
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "getTransaction",
-        "params": [
-            signature,
-            {
-                "encoding": "json",
-                "maxSupportedTransactionVersion": 0
-            }
-        ]
-    }
-
-    try:
-        response = requests.post(rpc_url, json=payload)
-        data = response.json()
-        tx_data = data.get('result', {})
-
-        if not tx_data:
-            return {
-                'success': False,
-                'error': 'Transaction not found',
-                'signature': signature
-            }
-
-        # Extract basic info
-        meta = tx_data.get('meta', {})
-        result = {
-            'success': meta.get('err') is None,
-            'signature': signature,
-            'timestamp': tx_data.get('blockTime'),
-            'datetime': datetime.fromtimestamp(tx_data.get('blockTime', 0)),
-            'slot': tx_data.get('slot'),
-            'fee': meta.get('fee', 0) / 1e9,
-            'participants': [],
-            'swaps': [],
-            'raw_tx': tx_data
-        }
-
-        # Get account keys
-        account_keys = tx_data.get('transaction', {}).get('message', {}).get('accountKeys', [])
-
-        # Parse token balances
-        pre_balances = meta.get('preTokenBalances', [])
-        post_balances = meta.get('postTokenBalances', [])
-
-        if not pre_balances and not post_balances:
-            result['error'] = 'No token transfers found in transaction'
-            return result
-
-        # Calculate token changes
-        token_changes = {}
-
-        for post in post_balances:
-            mint = post.get('mint')
-            owner = post.get('owner')
-            post_amount = float(post.get('uiTokenAmount', {}).get('uiAmount', 0))
-            symbol = post.get('uiTokenAmount', {}).get('symbol', mint[:8] if mint else 'Unknown')
-
-            # Find corresponding pre balance
-            pre_amount = 0
-            for pre in pre_balances:
-                if pre.get('mint') == mint and pre.get('owner') == owner:
-                    pre_amount = float(pre.get('uiTokenAmount', {}).get('uiAmount', 0))
-                    break
-
-            change = post_amount - pre_amount
-
-            if abs(change) > 0.000001:  # Ignore dust
-                if owner not in token_changes:
-                    token_changes[owner] = {'in': [], 'out': []}
-
-                if change > 0:
-                    token_changes[owner]['in'].append({
-                        'mint': mint,
-                        'mint_short': f"{mint[:8]}...{mint[-6:]}" if mint else 'Unknown',
-                        'symbol': symbol,
-                        'amount': change
-                    })
-                else:
-                    token_changes[owner]['out'].append({
-                        'mint': mint,
-                        'mint_short': f"{mint[:8]}...{mint[-6:]}" if mint else 'Unknown',
-                        'symbol': symbol,
-                        'amount': abs(change)
-                    })
-
-        # Build swaps from token changes
-        result['participants'] = list(token_changes.keys())
-
-        for owner, changes in token_changes.items():
-            if changes['in'] and changes['out']:
-                swap = {
-                    'trader': owner,
-                    'trader_short': f"{owner[:8]}...{owner[-6:]}",
-                    'tokens_sold': changes['out'],
-                    'tokens_bought': changes['in']
-                }
-
-                # Calculate exchange rates
-                if len(swap['tokens_sold']) == 1 and len(swap['tokens_bought']) == 1:
-                    sold = swap['tokens_sold'][0]
-                    bought = swap['tokens_bought'][0]
-
-                    if sold['amount'] > 0 and bought['amount'] > 0:
-                        swap['exchange_rate'] = {
-                            'rate': bought['amount'] / sold['amount'],
-                            'description': f"1 {sold['symbol']} = {bought['amount'] / sold['amount']:.8f} {bought['symbol']}"
-                        }
+                        # Always express in terms of SOL if SOL is involved
+                        if bought_is_sol:
+                            # Bought SOL, sold token - show how much SOL per 1 token
+                            rate = bought['amount'] / sold['amount']
+                            swap['exchange_rate'] = {
+                                'rate': rate,
+                                'description': f"1 {sold['symbol']} = {rate:.8f} SOL"
+                            }
+                        elif sold_is_sol:
+                            # Sold SOL, bought token - show how much SOL per 1 token
+                            rate = sold['amount'] / bought['amount']
+                            swap['exchange_rate'] = {
+                                'rate': rate,
+                                'description': f"1 {bought['symbol']} = {rate:.8f} SOL"
+                            }
+                        else:
+                            # Neither is SOL, show default
+                            swap['exchange_rate'] = {
+                                'rate': bought['amount'] / sold['amount'],
+                                'description': f"1 {sold['symbol']} = {bought['amount'] / sold['amount']:.8f} {bought['symbol']}"
+                            }
 
                 result['swaps'].append(swap)
 
@@ -1976,7 +1862,12 @@ def _print_transaction_analysis(result: Dict):
 
     print(f"✅ Transaction Status: SUCCESS")
     print(f"📅 Timestamp: {result['datetime']}")
-    print(f"🎰 Slot: {result['slot']}")
+
+    slot = result.get('slot')
+    if slot is not None:
+        print(f"🎰 Slot: {slot}")
+        print(f"🧱 Block: {slot}")
+
     print(f"💸 Fee: {result['fee']:.6f} SOL")
     if result.get('type'):
         print(f"🔖 Type: {result['type']}")
