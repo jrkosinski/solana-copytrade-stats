@@ -1683,6 +1683,10 @@ def _get_slot_leader(slot: int, rpc_url: str = "https://api.mainnet-beta.solana.
     """
     Get the slot leader (validator) for a specific slot
 
+    NOTE: This only works for recent slots in the current or recent epochs.
+    Historical slot leader information is not available via RPC as Solana
+    only maintains leader schedules for current/recent epochs.
+
     Args:
         slot: Slot number to query
         rpc_url: Solana RPC endpoint
@@ -1690,32 +1694,71 @@ def _get_slot_leader(slot: int, rpc_url: str = "https://api.mainnet-beta.solana.
     Returns:
         Validator address (public key) that was the slot leader, or None if unavailable
     """
-    payload = {
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "getBlock",
-        "params": [
-            slot,
-            {
-                "encoding": "json",
-                "transactionDetails": "none",
-                "rewards": False,
-                "maxSupportedTransactionVersion": 0
-            }
-        ]
-    }
-
     try:
-        response = requests.post(rpc_url, json=payload, timeout=10)
-        data = response.json()
+        # First, get the current epoch info to determine if this slot is queryable
+        epoch_payload = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "getEpochInfo"
+        }
 
-        if 'result' in data and data['result'] is not None:
-            block_leader = data['result'].get('blockLeader')
-            return block_leader
+        response = requests.post(rpc_url, json=epoch_payload, timeout=10)
+        epoch_data = response.json()
+
+        if 'result' not in epoch_data:
+            return None
+
+        current_slot = epoch_data['result']['absoluteSlot']
+        slots_in_epoch = epoch_data['result']['slotsInEpoch']
+        current_epoch = epoch_data['result']['epoch']
+
+        # Calculate which epoch the target slot belongs to
+        # Approximate epoch calculation (epochs are roughly 432,000 slots)
+        target_epoch = current_epoch - ((current_slot - slot) // slots_in_epoch)
+
+        # Only try to get leader schedule if within reasonable range (current epoch)
+        # Leader schedules are typically only available for current epoch
+        if abs(current_epoch - target_epoch) > 1:
+            # Slot is too old or too far in future, leader schedule not available
+            return None
+
+        # Get leader schedule for the target epoch
+        schedule_payload = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "getLeaderSchedule",
+            "params": [
+                slot,  # Use the slot to get the epoch's schedule
+                {"commitment": "finalized"}
+            ]
+        }
+
+        response = requests.post(rpc_url, json=schedule_payload, timeout=10)
+        schedule_data = response.json()
+
+        if 'result' not in schedule_data or not schedule_data['result']:
+            return None
+
+        # Calculate the epoch start slot
+        slot_index_in_epoch = epoch_data['result']['slotIndex']
+        epoch_start_slot = current_slot - slot_index_in_epoch
+
+        # If querying a different epoch, adjust the epoch start
+        if target_epoch != current_epoch:
+            epoch_start_slot += (current_epoch - target_epoch) * slots_in_epoch
+
+        # Calculate slot index within its epoch
+        target_slot_index = slot - epoch_start_slot
+
+        # Find the validator that was assigned this slot
+        for validator, assigned_slots in schedule_data['result'].items():
+            if target_slot_index in assigned_slots:
+                return validator
+
         return None
 
     except Exception as e:
-        print(f"⚠️ Error fetching slot leader: {str(e)}")
+        # Silently fail for slot leader lookups as they often fail for historical data
         return None
 
 
