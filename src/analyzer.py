@@ -73,7 +73,6 @@ class SolanaCopyTradingAnalyzer:
             'CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK': 'Raydium CLMM',
             'srmqPvymJeFKQ4zGQed1GFppgkRHL9kaELCbyksJtPX': 'Serum V3',
             '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P': 'Pump.fun',
-            #TODO: ADD AXIUM (URGENT)
         }
         
         #Store transaction data
@@ -149,7 +148,7 @@ class SolanaCopyTradingAnalyzer:
                 print(f"   This might indicate a token symbol mismatch between latency matching and trade matching.")
                 print(f"   Keeping all {original_count} trades for analysis.")
                 # Reload the original trades_df
-                self.trades_df = pd.DataFrame(self.trades)
+                #self.trades_df = pd.DataFrame(self.trades)
             else:
                 print(f"\n🔍 Filtered to Matched Trades Only:")
                 print(f"   Kept {filtered_count} of {original_count} trades that matched with target wallet")
@@ -990,9 +989,9 @@ class SolanaCopyTradingAnalyzer:
 
                     trade_match = {
                         'token': data['symbol'],
-                        'token_address': token[:8] + '...' + token[-6:],
-                        'buy_sig': buy['signature'][:8] + '...',
-                        'sell_sig': sell['signature'][:8] + '...',
+                        'token_address': token, #[:8] + '...' + token[-6:],
+                        'buy_sig': buy['signature'], #[:8] + '...',
+                        'sell_sig': sell['signature'], #[:8] + '...',
                         'buy_time': datetime.fromtimestamp(buy['timestamp']),
                         'sell_time': datetime.fromtimestamp(sell['timestamp']),
                         'buy_slot': buy['slot'],
@@ -1168,11 +1167,11 @@ class SolanaCopyTradingAnalyzer:
 
         ax.axis('off')
 
-        #Prepare data for table - show top trades by absolute P/L
+        #Prepare data for table - show all trades
         df_display = self.trades_df.copy()
 
-        #Sort by sell time (most recent first) and take top 15
-        df_display = df_display.sort_values('sell_time', ascending=False).head(15)
+        #Sort by sell time (most recent first) - show all trades
+        df_display = df_display.sort_values('sell_time', ascending=False)
 
         #Format the data for display
         table_data = []
@@ -1194,30 +1193,33 @@ class SolanaCopyTradingAnalyzer:
 
             table_data.append([
                 row['token'][:12],  #Token symbol (truncated)
-                row['sell_time'].strftime('%m/%d %H:%M'),
+                row['buy_time'].strftime('%m/%d %H:%M'),  #Buy Time
+                row['sell_time'].strftime('%m/%d %H:%M'),  #Sell Time
                 hold_str,
                 f"{row['cost']:.3f} {row['cost_token']}",
                 f"{row['proceeds']:.3f} {row['proceeds_token']}",
                 f"{profit_sign}{row['profit']:.3f}",
                 f"{pnl_sign}{row['pnl_pct']:.1f}%",
                 f"{row['largest_buy_pct']:.0f}%",
-                f"{row['largest_sell_pct']:.0f}%"
+                f"{row['largest_sell_pct']:.0f}%",
+                row['buy_sig'],  #Buy Tx Sig
+                row['sell_sig']  #Sell Tx Sig
             ])
 
         #Create column headers
-        col_labels = ['Token', 'Sell Time', 'Hold', 'Cost', 'Proceeds', 'Profit', 'P/L %', 'Buy %', 'Dump %']
+        col_labels = ['Token', 'Buy Time', 'Sell Time', 'Hold', 'Cost', 'Proceeds', 'Profit', 'P/L %', 'Buy %', 'Dump %', 'Buy Tx Sig', 'Sell Tx Sig']
 
         #Create the table
         table = ax.table(cellText=table_data,
                         colLabels=col_labels,
                         cellLoc='left',
                         loc='center',
-                        colWidths=[0.12, 0.10, 0.06, 0.15, 0.15, 0.10, 0.08, 0.07, 0.07])
+                        colWidths=[0.08, 0.07, 0.07, 0.04, 0.10, 0.10, 0.06, 0.05, 0.04, 0.04, 0.12, 0.12])
 
         #Style the table
         table.auto_set_font_size(False)
-        table.set_fontsize(8)
-        table.scale(1, 1.8)
+        table.set_fontsize(7)
+        table.scale(1, 1.5)
 
         #Color code the header
         for i, key in enumerate(col_labels):
@@ -1227,14 +1229,14 @@ class SolanaCopyTradingAnalyzer:
 
         #Color code profit/loss rows
         for i, row_data in enumerate(table_data):
-            profit_val = float(row_data[6].replace('%', '').replace('+', ''))
+            profit_val = float(row_data[7].replace('%', '').replace('+', ''))
             color = '#E8F5E9' if profit_val >= 0 else '#FFEBEE'
 
             for j in range(len(col_labels)):
                 cell = table[(i + 1, j)]
                 cell.set_facecolor(color)
 
-        ax.set_title('Recent Matched Trades (Latest 15)', fontsize=12, fontweight='bold', pad=10)
+        ax.set_title(f'Matched Trades (All {len(df_display)} trades)', fontsize=12, fontweight='bold', pad=10)
 
     def _plot_graphs(self, has_trades, has_latency, figsize, save_plots=False):
         """
