@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from analyzer import SolanaCopyTradingAnalyzer
+from analyzer import SolanaCopyTradingAnalyzer, analyze_transaction
 
 #TODO: that bug where it thinks a str is a tx: Error with Helius API: 'str' object has no attribute 'get'
 #TODO: outliers filtered out but not for the plotting
@@ -76,13 +76,47 @@ def quick_analyses(main_wallets):
         quick_solana_analysis(wallet, None, os.getenv('HELIUS_API_KEY'), 1000, max_trades=150)
 
 
-def full_analyses(main_wallets): 
-    for wallet in main_wallets: 
+def full_analyses(main_wallets):
+    for wallet in main_wallets:
         full_solana_analysis(wallet, None, os.getenv('HELIUS_API_KEY'), 1000, max_trades=150)
 
-full_solana_analysis("4BdKaxN8G6ka4GYtQQWk4G4dZRUTX2vQH9GcXdBREFUk", 
-    None, 
-    os.getenv('HELIUS_API_KEY'), 1000, max_trades=150)
+def analyze_tx(signature: str, helius_api_key: str = None):
+    """
+    Analyze a single transaction signature
+
+    Args:
+        signature: Transaction signature to analyze
+        helius_api_key: Optional Helius API key (uses env var if not provided)
+
+    Returns:
+        Dictionary containing transaction analysis
+
+    Example:
+        analyze_tx("5Jb3...")
+        analyze_tx("5Jb3...", os.getenv('HELIUS_API_KEY'))
+    """
+    if helius_api_key is None:
+        helius_api_key = os.getenv('HELIUS_API_KEY')
+
+    return analyze_transaction(signature, helius_api_key)
+
+
+full_analyze = False
+
+if (full_analyze): 
+    full_solana_analysis("8deJ9xeUvXSJwicYptA9mHsU2rN2pDx37KWzkDkEXhU6", 
+        None, 
+        os.getenv('HELIUS_API_KEY'), 1000, max_trades=150)
+
+    full_solana_analysis("9EibckQ6Jdfnhb4uAG352KaepYXspRrcNwFjC7xkvRXx", 
+        "8deJ9xeUvXSJwicYptA9mHsU2rN2pDx37KWzkDkEXhU6", 
+        os.getenv('HELIUS_API_KEY'), 1000, max_trades=150)
+
+    full_solana_analysis("9EibckQ6Jdfnhb4uAG352KaepYXspRrcNwFjC7xkvRXx", 
+        None, 
+        os.getenv('HELIUS_API_KEY'), 1000, max_trades=150)
+else:
+    analyze_tx("gn79MPugB7fAGoQ7i2GGdE8wLKRhF2rUobBeUqUYbL1bbZg7GBDdBztf5fN6zPUrkZPMuSe8y8HHP637ax6s5Mp", os.getenv('HELIUS_API_KEY'))
 
 
 #full_analyses([
@@ -123,7 +157,7 @@ full_solana_analysis("4BdKaxN8G6ka4GYtQQWk4G4dZRUTX2vQH9GcXdBREFUk",
 #2fg5QD1eD7rzNNCsvnhmXFm5hqNgwTTG8p7kQ6f3rx6f
 
 
-#9EibckQ6Jdfnhb4uAG352KaepYXspRrcNwFjC7xkvRXx
+#HOMEBOT - 9EibckQ6Jdfnhb4uAG352KaepYXspRrcNwFjC7xkvRXx
 
 #8deJ9xeUvXSJwicYptA9mHsU2rN2pDx37KWzkDkEXhU6 - no matched trades found
 #ADENywZuaxmt9Ar8Hju9z4zMYktjTLTVecDrDENrTsKF - Fastest Copy: 4 slots
