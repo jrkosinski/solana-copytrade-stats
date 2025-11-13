@@ -1679,6 +1679,46 @@ def analyze_transaction(signature: str,
     return result
 
 
+def _get_slot_leader(slot: int, rpc_url: str = "https://api.mainnet-beta.solana.com") -> str:
+    """
+    Get the slot leader (validator) for a specific slot
+
+    Args:
+        slot: Slot number to query
+        rpc_url: Solana RPC endpoint
+
+    Returns:
+        Validator address (public key) that was the slot leader, or None if unavailable
+    """
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "getBlock",
+        "params": [
+            slot,
+            {
+                "encoding": "json",
+                "transactionDetails": "none",
+                "rewards": False,
+                "maxSupportedTransactionVersion": 0
+            }
+        ]
+    }
+
+    try:
+        response = requests.post(rpc_url, json=payload, timeout=10)
+        data = response.json()
+
+        if 'result' in data and data['result'] is not None:
+            block_leader = data['result'].get('blockLeader')
+            return block_leader
+        return None
+
+    except Exception as e:
+        print(f"⚠️ Error fetching slot leader: {str(e)}")
+        return None
+
+
 def _analyze_transaction_helius(signature: str, helius_api_key: str) -> Dict:
     """
     Analyze transaction using Helius API (preferred method)
@@ -1712,18 +1752,29 @@ def _analyze_transaction_helius(signature: str, helius_api_key: str) -> Dict:
         tx = data[0]
 
         # Extract basic info
+        slot = tx.get('slot')
         result = {
             'success': tx.get('transactionError') is None,
             'signature': signature,
             'timestamp': tx.get('timestamp'),
             'datetime': datetime.fromtimestamp(tx.get('timestamp', 0)),
-            'slot': tx.get('slot'),
+            'slot': slot,
             'fee': tx.get('fee', 0) / 1e9,
             'type': tx.get('type'),
             'participants': [],
             'swaps': [],
             'raw_tx': tx
         }
+
+        # Fetch slot leader if slot is available
+        if slot is not None:
+            try:
+                slot_leader = _get_slot_leader(slot)
+                if slot_leader:
+                    result['slot_leader'] = slot_leader
+            except Exception as e:
+                print(f"⚠️ Could not fetch slot leader: {str(e)}")
+                result['slot_leader'] = None
 
         # Extract token transfers
         token_transfers = tx.get('tokenTransfers', [])
@@ -1866,7 +1917,11 @@ def _print_transaction_analysis(result: Dict):
     slot = result.get('slot')
     if slot is not None:
         print(f"🎰 Slot: {slot}")
-        print(f"🧱 Block: {slot}")
+
+    slot_leader = result.get('slot_leader')
+    if slot_leader:
+        print(f"👑 Slot Leader: {slot_leader[:8]}...{slot_leader[-6:]}")
+        print(f"   Full Address: {slot_leader}")
 
     print(f"💸 Fee: {result['fee']:.6f} SOL")
     if result.get('type'):

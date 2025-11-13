@@ -113,7 +113,13 @@ if (full_analyze):
 else:
     analyze_txs([
         "gn79MPugB7fAGoQ7i2GGdE8wLKRhF2rUobBeUqUYbL1bbZg7GBDdBztf5fN6zPUrkZPMuSe8y8HHP637ax6s5Mp",
-        "5NBGffe8c5cw2Uo15L5vyTFoQ2gXXwUU7pXpc8gFNFv4agAy1m2kehrH6VqNKE8y2F9ZcfUqZmLceFBzWjhLVWnx"
+        "5NBGffe8c5cw2Uo15L5vyTFoQ2gXXwUU7pXpc8gFNFv4agAy1m2kehrH6VqNKE8y2F9ZcfUqZmLceFBzWjhLVWnx",
+        "5WgYQ3g2q29B1LhPijoEfsZhqhVbnFj5EnEvfc6NvMJnv34xRzNju21dNWFjBNghbv1aRJ3jMpQXb5sefTUHScHz",
+        "5gupKWDtZUQ3uhtfDDMbL2LyC9QRkZ7WSZEfMo9uodcBiKjb8Fyp1ycUnajrcbozihjw7gwVqx4RqwUKnaJBUKrv",
+        "64k3YhEuoYpVy4TLjsXEXT8a65TehM3fW4W4qwYA6FhmhHfWnwDmc9NQPrMEpicZKc2pAFFs3nArdKsBXnnLqRRZ",
+        "2X91mBP7MkZ6j4oLxgf1PKzNny8SMtdcFf8MAP5EDT3zRze11N62rW1Be2m3rxXHw6inXMXQq2JsrFgMEravzhkP",
+        "5pycPpVsMhTTd6wGrYNYPQQhvECCGzDquBuWNvR3L1VPLXT2hDHobe61MTY2wF63MzJkFuFeCA2XiqYvpNtq9FKQ",
+        "ovfU7wzcuLinbpa5oYYUvj8yQnSVScXeuZNnxyXctGMtuUhD5MUXdceGvkajPUL8vxvyWKMBrUMxSBBAwz3JzCa"
     ])
 
 
