@@ -31,7 +31,7 @@ class SolanaCopyTradingAnalyzer:
                  shyft_api_key: str = None,
                  filter_outliers: bool = False,
                  filter_to_matched_only: bool = True,
-                 use_cache: bool = True):
+                 use_cache: bool = False):
         """
         Initialize the Solana analyzer
 
@@ -520,7 +520,6 @@ class SolanaCopyTradingAnalyzer:
         return f"./cached_results/{wallet}.json"
 
     def _fetch_trades(self, wallet: str, limit: int = 100, max_trades: int = 100) -> List[Dict]:
-        print("FETCH TRADES")
         """
         Fetch trades for a wallet, using cache if available or fetching fresh data
 
@@ -531,15 +530,17 @@ class SolanaCopyTradingAnalyzer:
         """
         # Check for cached data
         if (self.use_cache):
+            print('LOOKING FOR CACHE');
             if not self._get_cached_trade_results(wallet):
                 # Fetch fresh data
                 self._fetch_trades_raw(self.main_wallet, limit, max_trades=max_trades)
 
                 # Write to cache file
+                print('WRITING TO CACHE');
                 self._write_to_trades_cache(wallet)
         else: 
             # Fetch fresh data
-            self._fetch_trades(self.main_wallet, limit, max_trades=max_trades)
+            self._fetch_trades_raw(self.main_wallet, limit, max_trades=max_trades)
 
         return self.bot_txs
 
@@ -923,6 +924,19 @@ class SolanaCopyTradingAnalyzer:
 
                 print(len(token_positions))
         
+        # Debug: Show summary of buys and sells before matching
+        print(f"\n📊 Trade Position Summary:")
+        print(f"   Unique tokens: {len(token_positions)}")
+        total_buys = sum(len(data['buys']) for data in token_positions.values())
+        total_sells = sum(len(data['sells']) for data in token_positions.values())
+        print(f"   Total buys:  {total_buys}")
+        print(f"   Total sells: {total_sells}")
+
+        for token, data in token_positions.items():
+            print(f"\n   Token: {data['symbol']}")
+            print(f"     Buys:  {len(data['buys'])}")
+            print(f"     Sells: {len(data['sells'])}")
+
         #Calculate buy and sell statistics per token before matching
         for token, data in token_positions.items():
             buys = data['buys']
@@ -956,6 +970,9 @@ class SolanaCopyTradingAnalyzer:
                 token_sell_stats[token]['num_sells'] = 0
                 token_sell_stats[token]['largest_sell_pct'] = 0
 
+        # Define acceptable base currencies that can be compared against each other
+        ACCEPTABLE_BASE_CURRENCIES = {'SOL', 'USDC', 'USDT', 'So111111', 'WSOL'}
+
         #Match buys and sells (FIFO)
         for token, data in token_positions.items():
             buys = data['buys']
@@ -965,9 +982,18 @@ class SolanaCopyTradingAnalyzer:
                 if buys:
                     buy = buys[0]  #FIFO
 
-                    #Validate that we can compare these trades (same base currency)
-                    if buy.get('cost_token') != sell.get('proceeds_token'):
-                        print(f"⚠️ Skipping match for {data['symbol']}: different currencies (bought with {buy.get('cost_token')}, sold for {sell.get('proceeds_token')})")
+                    buy_currency = buy.get('cost_token')
+                    sell_currency = sell.get('proceeds_token')
+
+                    # Allow matching if:
+                    # 1. Same currency (original behavior)
+                    # 2. Both are acceptable base currencies (SOL/stablecoins)
+                    currencies_match = buy_currency == sell_currency
+                    both_acceptable = (buy_currency in ACCEPTABLE_BASE_CURRENCIES and
+                                      sell_currency in ACCEPTABLE_BASE_CURRENCIES)
+
+                    if not (currencies_match or both_acceptable):
+                        print(f"⚠️ Skipping match for {data['symbol']}: incompatible currencies (bought with {buy_currency}, sold for {sell_currency})")
                         buys.pop(0)  #Remove unmatched buy
                         continue
 
@@ -975,23 +1001,22 @@ class SolanaCopyTradingAnalyzer:
                     hold_time = sell['timestamp'] - buy['timestamp']
                     slot_diff = sell['slot'] - buy['slot']
 
-                    #Calculate P/L if same base currency
+                    #Calculate P/L (now works for cross-currency if both are base currencies)
                     pnl_pct = 0
                     profit = 0
                     actual_amount_traded = min(buy['amount'], sell['amount'])
 
-                    if buy.get('cost_token') == sell.get('proceeds_token'):
-                        if buy['amount'] > 0:
-                            #Calculate cost per token and proceeds per token
-                            cost_per_token = buy['cost'] / buy['amount']
-                            proceeds_per_token = sell['proceeds'] / sell['amount']
+                    if buy['amount'] > 0:
+                        #Calculate cost per token and proceeds per token
+                        cost_per_token = buy['cost'] / buy['amount']
+                        proceeds_per_token = sell['proceeds'] / sell['amount']
 
-                            #Calculate profit based on the actual amount traded
-                            profit = (proceeds_per_token - cost_per_token) * actual_amount_traded
+                        #Calculate profit based on the actual amount traded
+                        profit = (proceeds_per_token - cost_per_token) * actual_amount_traded
 
-                            #Calculate percentage
-                            if cost_per_token > 0:
-                                pnl_pct = ((proceeds_per_token / cost_per_token) - 1) * 100
+                        #Calculate percentage
+                        if cost_per_token > 0:
+                            pnl_pct = ((proceeds_per_token / cost_per_token) - 1) * 100
 
                     # Add buy and sell statistics for this token
                     stats = token_sell_stats.get(token, {

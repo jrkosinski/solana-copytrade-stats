@@ -77,7 +77,7 @@ def quick_analyses(main_wallets):
 
 def full_analyses(main_wallets):
     for wallet in main_wallets:
-        full_solana_analysis(wallet, None, 3000, max_trades=150, save_plots=True)
+        full_solana_analysis(wallet, None, 1000, max_trades=150, save_plots=True)
 
 def analyze_tx(signature: str):
     """
