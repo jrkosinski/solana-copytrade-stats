@@ -582,6 +582,9 @@ class SolanaCopyTradingAnalyzer:
             #try:
             if (True):
                 response = requests.get(url, params=params)
+                #print(url)
+                #print(params)
+                #print(response)
                 data = response.json()
                 if (len(data) == 0):
                     break
@@ -1347,7 +1350,10 @@ class SolanaCopyTradingAnalyzer:
 
             # Generate filename with timestamp
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f"./plots/analysis_graphs_{self.main_wallet[:8]}_{timestamp}.png"
+            dirname = f"./plots/{self.main_wallet}"
+            if not os.path.exists(dirname):
+                os.mkdir(dirname)
+            filename = f"{dirname}/analysis_graphs_{self.main_wallet[:8]}_{timestamp}.png"
 
             plt.savefig(filename, dpi=300, bbox_inches='tight')
             print(f"📊 Performance graphs saved to {filename}")
@@ -1380,7 +1386,10 @@ class SolanaCopyTradingAnalyzer:
 
             # Generate filename with timestamp
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f"./plots/trade_table_{self.main_wallet[:8]}_{timestamp}.png"
+            dirname = f"./plots/{self.main_wallet}"
+            if not os.path.exists(dirname):
+                os.mkdir(dirname)
+            filename = f"{dirname}/trade_table_{self.main_wallet[:8]}_{timestamp}.png"
 
             plt.savefig(filename, dpi=300, bbox_inches='tight')
             print(f"📋 Trade table saved to {filename}")
@@ -1497,7 +1506,10 @@ class SolanaCopyTradingAnalyzer:
 
             # Generate filename with timestamp
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f"./plots/behavior_analysis_{self.main_wallet[:8]}_{timestamp}.png"
+            dirname = f"./plots/{self.main_wallet}"
+            if not os.path.exists(dirname):
+                os.mkdir(dirname)
+            filename = f"{dirname}/behavior_analysis_{self.main_wallet[:8]}_{timestamp}.png"
 
             plt.savefig(filename, dpi=300, bbox_inches='tight')
             print(f"📈 Behavior analysis saved to {filename}")
