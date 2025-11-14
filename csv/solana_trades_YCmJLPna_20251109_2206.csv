@@ -1,2 +1,0 @@
-token,token_address,buy_sig,sell_sig,buy_time,sell_time,buy_slot,sell_slot,slot_diff,hold_seconds,hold_days,buy_amount,sell_amount,amount_traded,cost,proceeds,cost_per_token,proceeds_per_token,profit,cost_token,proceeds_token,pnl_pct,num_sells,largest_sell_pct
-86JJT2kx,86JJT2kx...Lwpump,3DW6AxAM...,5ebWEPq8...,2025-11-05 19:25:23,2025-11-05 19:55:06,378081354,378085801,4447,1783,0.020636574074074075,1529290.807427,6251721.232873,1529290.807427,1.011120778,16.449081692,6.611697219976034e-07,2.6311284651508315e-06,3.0126397969146783,So111111,So111111,297.95053790445183,1,100.0
