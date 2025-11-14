@@ -30,7 +30,8 @@ class SolanaCopyTradingAnalyzer:
                  helius_api_key: str = None,
                  shyft_api_key: str = None,
                  filter_outliers: bool = False,
-                 filter_to_matched_only: bool = True):
+                 filter_to_matched_only: bool = True,
+                 use_cache: bool = True):
         """
         Initialize the Solana analyzer
 
@@ -50,6 +51,7 @@ class SolanaCopyTradingAnalyzer:
         self.shyft_api_key = shyft_api_key
         self.filter_outliers = filter_outliers
         self.filter_to_matched_only = filter_to_matched_only
+        self.use_cache = use_cache
 
         if not self.target_wallet:
             self.filter_to_matched_only = False
@@ -528,20 +530,27 @@ class SolanaCopyTradingAnalyzer:
             max_trades: Maximum number of trades to fetch
         """
         # Check for cached data
-        if not self._get_cached_trade_results(wallet):
+        if (self.use_cache):
+            if not self._get_cached_trade_results(wallet):
+                # Fetch fresh data
+                self._fetch_trades_raw(self.main_wallet, limit, max_trades=max_trades)
 
+                # Write to cache file
+                self._write_to_trades_cache(wallet)
+        else: 
             # Fetch fresh data
-            if self.helius_api_key:
-                self.bot_txs = self._fetch_trades_helius(self.main_wallet, limit, max_trades=max_trades)
-            else:
-                self.bot_txs = self._fetch_trades_basic(self.main_wallet, limit)
+            self._fetch_trades(self.main_wallet, limit, max_trades=max_trades)
 
-            # Write to cache file
-            self._write_to_trades_cache(wallet)
-        
         return self.bot_txs
 
-    def _fetch_trades_helius(self, wallet: str, limit: int = 1000, max_trades: int = 100) -> List[Dict]:
+    def _fetch_trades_raw(self, wallet: str, limit: int = 1000, max_trades: int = 1000): 
+        # Fetch fresh data
+        if self.helius_api_key:
+            self.bot_txs = self._fetch_trades_helius(self.main_wallet, limit, max_trades=max_trades)
+        else:
+            self.bot_txs = self._fetch_trades_basic(self.main_wallet, limit)
+
+    def _fetch_trades_helius(self, wallet: str, limit: int = 1000, max_trades: int = 1000) -> List[Dict]:
         """
         Fetch and parse trades using Helius API (more reliable than basic RPC)
 

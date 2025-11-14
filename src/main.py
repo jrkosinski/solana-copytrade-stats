@@ -43,7 +43,7 @@ def quick_solana_analysis(main_wallet: str,
 def full_solana_analysis(main_wallet: str,
                          target_wallet: str = None,
                          limit: int = 1000,
-                         max_trades:int = 100,
+                         max_trades:int = 1000,
                          save_plots: bool = False):
     """
     Full analysis function for Solana copy-trading bots
