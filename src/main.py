@@ -10,8 +10,7 @@ from tokenchart import TokenChart
 
 def quick_solana_analysis(main_wallet: str, 
                          target_wallet: str = None,
-                         limit: int = 1000, 
-                         max_trades:int = 100):
+                         limit: int = 1000):
     """
     Quick analysis function for Solana copy-trading bots
     
@@ -33,7 +32,7 @@ def quick_solana_analysis(main_wallet: str,
     )
     
     # Run analysis
-    trades_df = analyzer.analyze_wallet(limit=limit, max_trades=max_trades)  # Limit for quick analysis
+    trades_df = analyzer.analyze_wallet(limit=limit)  # Limit for quick analysis
     
     # Generate report
     analyzer.generate_report()
@@ -43,7 +42,6 @@ def quick_solana_analysis(main_wallet: str,
 def full_solana_analysis(main_wallet: str,
                          target_wallet: str = None,
                          limit: int = 1000,
-                         max_trades:int = 1000,
                          save_plots: bool = False):
     """
     Full analysis function for Solana copy-trading bots
@@ -52,11 +50,10 @@ def full_solana_analysis(main_wallet: str,
         main_wallet: Bot wallet address
         target_wallet: Target wallet to compare (optional)
         limit: API request limit per call
-        max_trades: Maximum number of trades to fetch
         save_plots: If True, save plots as PNG files to ./plots/ directory
     """
 
-    analyzer, trades_df = quick_solana_analysis(main_wallet, target_wallet, limit, max_trades)
+    analyzer, trades_df = quick_solana_analysis(main_wallet, target_wallet, limit)
 
     # Plot if data available
     if not trades_df.empty or not analyzer.latency_df.empty:
@@ -72,12 +69,12 @@ def full_solana_analysis(main_wallet: str,
 
 def quick_analyses(main_wallets): 
     for wallet in main_wallets: 
-        quick_solana_analysis(wallet, None, 1000, max_trades=150)
+        quick_solana_analysis(wallet, None, 1000)
 
 
 def full_analyses(main_wallets):
     for wallet in main_wallets:
-        full_solana_analysis(wallet, None, 1000, max_trades=150, save_plots=True)
+        full_solana_analysis(wallet, None, 3000, save_plots=True)
 
 def analyze_tx(signature: str):
     """
@@ -105,34 +102,8 @@ full_analyze = True
 if (full_analyze): 
 
     #full_solana_analysis("8deJ9xeUvXSJwicYptA9mHsU2rN2pDx37KWzkDkEXhU6", 
-    #    None, 1000, max_trades=150)
+    #    None, 1000)
 
-    #full_solana_analysis("GpTXmkdvrTajqkzX1fBmC4BUjSboF9dHgfnqPqj8WAc4", 
-    #    None, 1000, max_trades=150, save_plots=True)
-
-    #full_solana_analysis("2ezv4U5HmPpkt2xLsKnw1FyyGmjFBeW7c166p99Hw2xB", 
-    #    None, 1000, max_trades=150, save_plots=True)
-
-    #full_solana_analysis("7BNaxx6KdUYrjACNQZ9He26NBFoFxujQMAfNLnArLGH5", 
-    #    None, 1000, max_trades=150, save_plots=True)
-
-    #full_solana_analysis("5TaPtQ9DE1YMUfiyLv7CCNx1CEh88nWx3sPmNRz9zL75", 
-    #    None, 1000, max_trades=150, save_plots=True)
-
-    #full_solana_analysis("Aqje5DsN4u2PHmQxGF9PKfpsDGwQRCBhWeLKHCFhSMXk", 
-    #    None, 1000, max_trades=150, save_plots=True)
-
-    #full_solana_analysis("9sCcAxe56AuDQfJgU7kB1LpnQEYXDcGpAtXnN49H6SB3", 
-    #    None, 1000, max_trades=150, save_plots=True)
-
-    #full_solana_analysis("HdKJM6Lvfp9aV9tvEMC8AD4GnsbFgMUkHLoK923Sn1ET", 
-    #    None, 1000, max_trades=150, save_plots=True)
-
-    #full_solana_analysis("YCmJLPnathD2TWQEvUUD4pWUSQ1UP8KtUZFzH8ARdkr", 
-    #    None, 1000, max_trades=150, save_plots=True)
-
-    #full_solana_analysis("9EibckQ6Jdfnhb4uAG352KaepYXspRrcNwFjC7xkvRXx", 
-    #    "8deJ9xeUvXSJwicYptA9mHsU2rN2pDx37KWzkDkEXhU6", 1000, max_trades=150)
 
     #chart = TokenChart( "F2rgvoWN6AM5U82BxV6AxXTLq3CJmTbF7bu7Yssxpump", os.getenv('HELIUS_API_KEY'),
     #    372916770, 372916870)
@@ -141,7 +112,7 @@ if (full_analyze):
 
 #########################
     #full_solana_analysis("9EibckQ6Jdfnhb4uAG352KaepYXspRrcNwFjC7xkvRXx", 
-    #    "CFS2db3cag9A3G8P5NHT3sbFTcvDeXW4WXgWn6tQcs74", 1000, max_trades=150)
+    #    "CFS2db3cag9A3G8P5NHT3sbFTcvDeXW4WXgWn6tQcs74", 1000)
 
     full_analyses([
         "2fg5QD1eD7rzNNCsvnhmXFm5hqNgwTTG8p7kQ6f3rx6f",

@@ -139,7 +139,6 @@ MAX_PNL_PCT = 50000.0   # Exclude trades with profit > 50000%
 MIN_PNL_PCT = -80.0     # Exclude trades with loss < -80%
 
 # Analysis limits
-max_trades = 150  # Maximum number of trades to fetch
 limit = 1000      # API request limit per call
 ```
 
@@ -222,7 +221,7 @@ analyzer = SolanaCopyTradingAnalyzer(
 )
 
 # Run analysis
-trades_df = analyzer.analyze_wallet(limit=1000, max_trades=150)
+trades_df = analyzer.analyze_wallet(limit=1000)
 
 # Generate report
 analyzer.generate_report()
@@ -245,7 +244,7 @@ analyzer = SolanaCopyTradingAnalyzer(
 )
 
 # Run analysis
-trades_df = analyzer.analyze_wallet(limit=1000, max_trades=150)
+trades_df = analyzer.analyze_wallet(limit=1000)
 
 # View latency statistics
 if not analyzer.latency_df.empty:
@@ -253,8 +252,9 @@ if not analyzer.latency_df.empty:
 ```
 
 **Parameters:**
-- `target_wallet`: The wallet address being copied (optional)
-- `filter_to_matched_only`: When `True`, only analyze trades on tokens that were copied from the target wallet. Useful for focused copy-trading performance analysis. Default: `False`
+
+-   `target_wallet`: The wallet address being copied (optional)
+-   `filter_to_matched_only`: When `True`, only analyze trades on tokens that were copied from the target wallet. Useful for focused copy-trading performance analysis. Default: `False`
 
 ### Custom Analysis
 
