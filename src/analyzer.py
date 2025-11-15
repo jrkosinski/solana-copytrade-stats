@@ -7,6 +7,8 @@ from typing import Dict, List, Optional, Tuple
 import json
 from web3 import Web3
 from trading_plotter import TradingPlotter
+from trading_reporter import TradingReporter
+from utils import get_solscan_url, print_trade_match
 
 
 class SolanaCopyTradingAnalyzer:
@@ -157,110 +159,10 @@ class SolanaCopyTradingAnalyzer:
         """
         Generate comprehensive analysis report with statistics and metrics
 
-        Prints detailed statistics including:
-        - Overall trade counts and date ranges
-        - Profit/loss statistics (mean, median, win rate)
-        - Risk metrics (Sharpe ratio, drawdown, draw-up)
-        - Hold time statistics
-        - Entry behavior (buy aggressiveness, buy fragmentation)
-        - Exit behavior (dump aggressiveness, sell fragmentation)
-        - Copy latency statistics (if target wallet provided)
+        Delegates to TradingReporter class for report generation
         """
-
-        print("\n" + "=" * 80)
-        print("📊 SOLANA COPY-TRADING BOT PERFORMANCE REPORT")
-        print("=" * 80)
-
-        if not self.trades_df.empty:
-
-            if not self.trades_df.empty:
-                print("\n📈 Overall Statistics:")
-                print(f"   Total Matched Trades: {len(self.trades_df)}")
-                print(f"   Trades in Analysis: {len(self.trades_df)}")
-                print(f"   Unique Tokens Traded: {self.trades_df['token'].nunique()}")
-                print(f"   Date Range: {self.trades_df['buy_time'].min()} to {self.trades_df['sell_time'].max()}")
-
-                print("\n💰 Profit/Loss Statistics (Filtered):")
-                print(f"   Average P/L per trade: {self.trades_df['pnl_pct'].mean():.2f}%")
-                print(f"   Median P/L per trade: {self.trades_df['pnl_pct'].median():.2f}%")
-                print(f"   Best Trade: {self.trades_df['pnl_pct'].max():.2f}%")
-                print(f"   Worst Trade: {self.trades_df['pnl_pct'].min():.2f}%")
-                print(f"   Win Rate: {(self.trades_df['pnl_pct'] > 0).mean() * 100:.1f}%")
-
-                # Calculate and display risk metrics
-                risk_metrics = self._calculate_risk_metrics()
-                print("\n📊 Risk Metrics:")
-                print(f"   Sharpe Ratio: {risk_metrics['sharpe_ratio']:.2f}")
-                print(f"   Max Drawdown: {risk_metrics['max_drawdown']:.2f}%")
-                print(f"   Max Drawdown Duration: {risk_metrics['max_drawdown_duration']:.2f} days")
-                print(f"   Max Draw-up: {risk_metrics['max_drawup']:.2f}%")
-                print(f"   Max Draw-up Duration: {risk_metrics['max_drawup_duration']:.2f} days")
-
-                print("\n⏰ Hold Time Statistics:")
-                print(f"   Average Hold Time: {self.trades_df['hold_days'].mean():.2f} days")
-                print(f"   Median Hold Time: {self.trades_df['hold_days'].median():.2f} days")
-                print(f"   Shortest Hold: {self.trades_df['hold_seconds'].min() / 60:.1f} minutes")
-                print(f"   Longest Hold: {self.trades_df['hold_days'].max():.1f} days")
-
-                print("\n📥 Entry Behavior:")
-                print(f"   Average Largest Buy: {self.trades_df['largest_buy_pct'].mean():.1f}% of position")
-                print(f"   Median Largest Buy: {self.trades_df['largest_buy_pct'].median():.1f}% of position")
-                print(f"   Average Buys per Token: {self.trades_df['num_buys'].mean():.1f}")
-
-                # Categorize entry behavior
-                instant_buys = (self.trades_df['largest_buy_pct'] == 100).sum()
-                partial_entries = ((self.trades_df['largest_buy_pct'] >= 50) & (self.trades_df['largest_buy_pct'] < 100)).sum()
-                gradual_entries = (self.trades_df['largest_buy_pct'] < 50).sum()
-                print(f"   Instant Buy-ins (100%): {instant_buys} ({instant_buys/len(self.trades_df)*100:.1f}%)")
-                print(f"   Partial Entries (50-99%): {partial_entries} ({partial_entries/len(self.trades_df)*100:.1f}%)")
-                print(f"   Gradual Entries (<50%): {gradual_entries} ({gradual_entries/len(self.trades_df)*100:.1f}%)")
-
-                print("\n🔄 Exit Behavior:")
-                print(f"   Average Largest Sell: {self.trades_df['largest_sell_pct'].mean():.1f}% of position")
-                print(f"   Median Largest Sell: {self.trades_df['largest_sell_pct'].median():.1f}% of position")
-                print(f"   Average Sells per Token: {self.trades_df['num_sells'].mean():.1f}")
-
-                # Categorize exit behavior
-                instant_dumps = (self.trades_df['largest_sell_pct'] == 100).sum()
-                partial_exits = ((self.trades_df['largest_sell_pct'] >= 50) & (self.trades_df['largest_sell_pct'] < 100)).sum()
-                gradual_exits = (self.trades_df['largest_sell_pct'] < 50).sum()
-                print(f"   Instant Dumps (100%): {instant_dumps} ({instant_dumps/len(self.trades_df)*100:.1f}%)")
-                print(f"   Partial Exits (50-99%): {partial_exits} ({partial_exits/len(self.trades_df)*100:.1f}%)")
-                print(f"   Gradual Exits (<50%): {gradual_exits} ({gradual_exits/len(self.trades_df)*100:.1f}%)")
-        else:
-            print("\n⚠️ No matched trades found")
-            print("   Raw transaction count:", len(self.bot_txs))
-        
-        if not self.latency_df.empty:
-            print("\n⚡ Copy Latency Statistics:")
-            print(f"   Total Matched Swaps: {len(self.latency_df)}")
-
-            # Count by direction
-            buys = len(self.latency_df[self.latency_df['direction'] == 'BUY'])
-            sells = len(self.latency_df[self.latency_df['direction'] == 'SELL'])
-            print(f"   Matched Buys: {buys}")
-            print(f"   Matched Sells: {sells}")
-
-            print(f"\n   Average Slot Latency: {self.latency_df['slot_latency'].mean():.1f} slots")
-            print(f"   Median Slot Latency: {self.latency_df['slot_latency'].median():.0f} slots")
-            print(f"   Average Time Latency: {self.latency_df['time_latency'].mean():.1f} seconds")
-            print(f"   Fastest Copy: {self.latency_df['slot_latency'].min()} slots")
-            print(f"   Slowest Copy: {self.latency_df['slot_latency'].max()} slots")
-
-            #Estimate latency in milliseconds (Solana slot time ~400ms)
-            avg_ms = self.latency_df['slot_latency'].mean() * 400
-            print(f"   Estimated Avg Latency: ~{avg_ms:.0f}ms")
-
-            # Detailed breakdown of matched trades
-            print("\n📋 Matched Trade Details:")
-            for idx, row in self.latency_df.iterrows():
-                direction_emoji = "🟢" if row['direction'] == 'BUY' else "🔴"
-                print(f"\n   {direction_emoji} {row['direction']} {row['token']}")
-                print(f"      Bot Signature:    {row['bot_sig']}")
-                print(f"      Target Signature: {row['target_sig']}")
-                print(f"      Slot Latency:     {row['slot_latency']} slots ({row['time_latency']:.1f}s)")
-                print(f"      Bot Slot:         {row['bot_slot']}")
-                print(f"      Target Slot:      {row['target_slot']}")
+        reporter = TradingReporter(self.main_wallet, self.target_wallet)
+        reporter.generate_report(self.trades_df, self.latency_df, len(self.bot_txs))
     
     def plot_results(self, figsize=(20, 14), save_plots=False):
         """
@@ -276,223 +178,6 @@ class SolanaCopyTradingAnalyzer:
 
     #=============================================================================================================
      
-    def _fetch_signatures(self, wallet: str, limit: int = 1000) -> List[str]:
-        """
-        Fetch transaction signatures for a wallet using Solana RPC
-
-        Args:
-            wallet: Solana wallet address to fetch signatures for
-            limit: Maximum number of signatures to retrieve (default: 1000)
-
-        Returns:
-            List of transaction signature strings
-        """
-        
-        print(f"📥 Fetching signatures for {wallet[:8]}...{wallet[-6:]}")
-        
-        payload = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "getSignaturesForAddress",
-            "params": [
-                wallet,
-                {"limit": limit}
-            ]
-        }
-        
-        try:
-            response = requests.post(self.rpc_url, json=payload)
-            data = response.json()
-            
-            if 'result' in data:
-                signatures = [sig['signature'] for sig in data['result']]
-                print(f"   Found {len(signatures)} signatures")
-                print(signatures[0]);
-                return signatures
-            else:
-                print(f"   Error: {data.get('error', 'Unknown error')}")
-                return []
-        except Exception as e:
-            print(f"   Error fetching signatures: {e}")
-            return []
-    
-    def _fetch_transaction(self, signature: str) -> Dict:
-        """
-        Fetch detailed transaction data for a given signature
-
-        Args:
-            signature: Transaction signature hash
-
-        Returns:
-            Dictionary containing transaction details or empty dict on error
-        """
-        
-        payload = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "getTransaction",
-            "params": [
-                signature,
-                {
-                    "encoding": "json",
-                    "maxSupportedTransactionVersion": 0
-                }
-            ]
-        }
-        
-        try:
-            response = requests.post(self.rpc_url, json=payload)
-            data = response.json()
-            return data.get('result', {})
-        except:
-            return {}
-
-    def _estimate_token_price_at_transfer(self, token_mint: str, amount: float, timestamp: int, signature: str) -> Tuple[float, str]:
-        """
-        Estimate the cost basis for a transferred token by looking at nearby swaps
-
-        Args:
-            token_mint: Token mint address
-            amount: Amount of tokens transferred
-            timestamp: Unix timestamp of transfer
-            signature: Transaction signature
-
-        Returns:
-            Tuple of (estimated_cost in SOL, cost_token_symbol)
-        """
-        # Strategy: Look at the transaction to see if there's a corresponding swap
-        # that might indicate the price paid for these tokens
-
-        try:
-            # Fetch the transfer transaction details
-            url = f"{self.helius_url}/transactions"
-            params = {
-                'api-key': self.helius_api_key,
-            }
-
-            # Try to get transactions for this token around the transfer time
-            # to estimate market price
-            response = requests.post(
-                url,
-                params=params,
-                json={'transactions': [signature]}
-            )
-
-            if response.status_code == 200:
-                tx_data = response.json()
-                if tx_data and len(tx_data) > 0:
-                    tx = tx_data[0]
-
-                    # Check if this transfer transaction also has swap information
-                    # (some transfers are part of larger transactions that include swaps)
-                    token_transfers = tx.get('tokenTransfers', [])
-
-                    # Look for SOL or stablecoin outflows in the same transaction
-                    for transfer in token_transfers:
-                        from_account = transfer.get('fromUserAccount')
-                        to_account = transfer.get('toUserAccount')
-                        transfer_mint = transfer.get('mint')
-                        transfer_amount = transfer.get('tokenAmount', 0)
-                        symbol = transfer.get('tokenSymbol', '')
-
-                        # If SOL/USDC went out in same transaction, use that as cost basis
-                        if (from_account == self.main_wallet and
-                            symbol in ['SOL', 'USDC', 'USDT', 'So111111', 'WSOL']):
-                            # Found a payment in the same transaction
-                            return transfer_amount, symbol
-
-            # Fallback: Estimate based on a simple heuristic
-            # For pump.fun tokens and other meme coins, a typical cost is around 0.01-0.1 SOL per transfer
-            # This is a rough estimate when we can't determine the actual cost
-            estimated_cost = amount * 0.00001  # Very conservative estimate
-            return estimated_cost, 'SOL'
-
-        except Exception as e:
-            print(f"   Warning: Could not estimate price for transfer {signature[:16]}...: {e}")
-            # Fallback to minimal estimate
-            return amount * 0.00001, 'SOL'
-
-    def _parse_jupiter_swap(self, tx_data: Dict) -> Optional[Dict]:
-        """
-        Parse Jupiter swap details from transaction data
-
-        Args:
-            tx_data: Dictionary containing raw transaction data
-
-        Returns:
-            Dictionary with swap details (token_in, token_out, amounts, symbols) or None if not a Jupiter swap
-        """
-        #print("PARSE_JUPYTER_SWAP")
-        
-        if not tx_data or 'meta' not in tx_data:
-            return None
-        
-        meta = tx_data['meta']
-        
-        #Check for Jupiter in account keys
-        account_keys = tx_data.get('transaction', {}).get('message', {}).get('accountKeys', [])
-        
-        #Look for Jupiter program
-        is_jupiter = any(
-            key in ['JUP4Fb2cqiRUcaTHdrPC8h2gNsA2ETXiPDD33WcGuJB',
-                   'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4']
-            for key in account_keys
-        )
-        
-        if not is_jupiter:
-            return None
-        
-        #Parse token balances
-        pre_balances = meta.get('preTokenBalances', [])
-        post_balances = meta.get('postTokenBalances', [])
-        
-        if not pre_balances or not post_balances:
-            return None
-        
-        #Find token changes
-        token_changes = {}
-        
-        for post in post_balances:
-            mint = post.get('mint')
-            owner = post.get('owner')
-            post_amount = float(post.get('uiTokenAmount', {}).get('uiAmount', 0))
-            
-            #Find corresponding pre balance
-            pre_amount = 0
-            for pre in pre_balances:
-                if pre.get('mint') == mint and pre.get('owner') == owner:
-                    pre_amount = float(pre.get('uiTokenAmount', {}).get('uiAmount', 0))
-                    break
-            
-            change = post_amount - pre_amount
-            if abs(change) > 0.000001:  #Ignore dust
-                token_changes[mint] = {
-                    'change': change,
-                    'symbol': post.get('uiTokenAmount', {}).get('symbol', 'Unknown'),
-                    'decimals': post.get('uiTokenAmount', {}).get('decimals', 9)
-                }
-        
-        #Identify swap direction
-        tokens_in = {k: v for k, v in token_changes.items() if v['change'] < 0}
-        tokens_out = {k: v for k, v in token_changes.items() if v['change'] > 0}
-        
-        if tokens_in and tokens_out:
-            #Take first token pair (simplified)
-            token_in = list(tokens_in.keys())[0]
-            token_out = list(tokens_out.keys())[0]
-            
-            return {
-                'token_in': token_in,
-                'token_in_symbol': tokens_in[token_in]['symbol'],
-                'token_in_amount': abs(tokens_in[token_in]['change']),
-                'token_out': token_out,
-                'token_out_symbol': tokens_out[token_out]['symbol'],
-                'token_out_amount': tokens_out[token_out]['change'],
-                'program': 'Jupiter'
-            }
-        
-        return None
-    
     def _get_cached_trade_results(self, wallet: str) -> bool:
         """
         Load previously cached trade data from JSON file
@@ -546,7 +231,6 @@ class SolanaCopyTradingAnalyzer:
             limit: API request limit per call
         """
         # Check for cached data
-        self.use_cache = False;
         if (self.use_cache):
             print('LOOKING FOR CACHE');
             if not self._get_cached_trade_results(wallet):
@@ -778,139 +462,6 @@ class SolanaCopyTradingAnalyzer:
             
         return trades
     
-    def _get_solscan_url(self, signature: str) -> str:
-        """
-        Generate Solscan URL for transaction verification
-
-        Args:
-            signature: Transaction signature hash
-
-        Returns:
-            Full Solscan.io URL for the transaction
-        """
-        return f"https://solscan.io/tx/{signature}"
-
-    def _print_trade_match(self, trade: Dict, trade_num: int):
-        """
-        Print formatted trade match details to console
-
-        Args:
-            trade: Dictionary containing matched trade details (buy/sell pair with P/L)
-            trade_num: Sequential trade number for display
-        """
-
-        #Calculate hold duration in a readable format
-        hold_seconds = trade['hold_seconds']
-        if hold_seconds < 60:
-            duration_str = f"{hold_seconds:.1f}s"
-        elif hold_seconds < 3600:
-            duration_str = f"{hold_seconds / 60:.1f}m"
-        elif hold_seconds < 86400:
-            duration_str = f"{hold_seconds / 3600:.1f}h"
-        else:
-            days = hold_seconds / 86400
-            if days < 7:
-                duration_str = f"{days:.1f}d"
-            else:
-                duration_str = f"{days / 7:.1f}w"
-
-        #Format profit/loss with color indicators
-        profit_raw = trade['profit']
-        pnl_pct = trade['pnl_pct']
-        profit_indicator = "+" if profit_raw >= 0 else ""
-        pnl_indicator = "+" if pnl_pct >= 0 else ""
-
-        #Check if amounts match
-        amount_mismatch = trade['buy_amount'] != trade['sell_amount']
-        amount_warning = " ⚠️ PARTIAL" if amount_mismatch else ""
-
-        #Print formatted output
-        print(f"\n{'='*70}")
-        print(f"Trade #{trade_num} - {trade['token']}{amount_warning}")
-        print(f"{'='*70}")
-        print(f"Token:         {trade['token']} ({trade['token_address']})")
-        print(f"Hold Duration: {duration_str} ({trade['hold_days']:.2f} days)")
-        print(f"Buy Time:      {trade['buy_time'].strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"Sell Time:     {trade['sell_time'].strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"---")
-        print(f"Buy Amount:    {trade['buy_amount']:.4f} {trade['token']}")
-        print(f"Sell Amount:   {trade['sell_amount']:.4f} {trade['token']}")
-        if amount_mismatch:
-            print(f"Amount Traded: {trade['amount_traded']:.4f} {trade['token']} (min of buy/sell)")
-        print(f"---")
-        print(f"Cost:          {trade['cost']:.4f} {trade['cost_token']} ({trade['cost_per_token']:.8f} per token)")
-        print(f"Proceeds:      {trade['proceeds']:.4f} {trade['proceeds_token']} ({trade['proceeds_per_token']:.8f} per token)")
-        print(f"---")
-        print(f"PROFIT:        {profit_indicator}{profit_raw:.4f} {trade['proceeds_token']} ({pnl_indicator}{pnl_pct:.2f}%)")
-        print(f"{'='*70}")
-
-    def _extract_token_flows_simple(self, transactions: List[Dict]) -> Dict:
-        """
-        Extract token inflows and outflows using simple, robust logic
-        Based on POC approach that works reliably
-
-        Args:
-            transactions: List of transaction dictionaries from Helius
-
-        Returns:
-            Dict with 'inflows' and 'outflows' lists
-        """
-        inflows = []
-        outflows = []
-
-        print("🔍 Extracting token flows (POC method)...")
-
-        for tx in transactions:
-            tx_type = tx.get('type')
-            timestamp = tx.get('timestamp', 0)
-            signature = tx.get('signature', 'N/A')
-            slot = tx.get('slot', 0)
-            token_transfers = tx.get('tokenTransfers', [])
-
-            # Process each token transfer
-            for transfer in token_transfers:
-                from_account = transfer.get('fromUserAccount')
-                to_account = transfer.get('toUserAccount')
-                mint = transfer.get('mint')
-                amount = transfer.get('tokenAmount', 0)
-
-                # Skip if no amount or no mint
-                if amount == 0 or not mint:
-                    continue
-
-                # Token coming INTO our wallet
-                if to_account == self.main_wallet:
-                    inflow = {
-                        'token': mint,
-                        'symbol': mint[:8],
-                        'amount': amount,
-                        'type': tx_type,
-                        'timestamp': timestamp,
-                        'slot': slot,
-                        'signature': signature,
-                        'from_account': from_account
-                    }
-                    inflows.append(inflow)
-
-                # Token going OUT of our wallet
-                elif from_account == self.main_wallet:
-                    outflow = {
-                        'token': mint,
-                        'symbol': mint[:8],
-                        'amount': amount,
-                        'type': tx_type,
-                        'timestamp': timestamp,
-                        'slot': slot,
-                        'signature': signature,
-                        'to_account': to_account
-                    }
-                    outflows.append(outflow)
-
-        print(f"   Found {len(inflows)} token inflows")
-        print(f"   Found {len(outflows)} token outflows")
-
-        return {'inflows': inflows, 'outflows': outflows}
-
     def _match_trades_for_pnl(self, trades: List[Dict]) -> List[Dict]:
         """
         Match buy and sell trades using FIFO to calculate profit/loss
@@ -1138,8 +689,8 @@ class SolanaCopyTradingAnalyzer:
                         print(f"  P/L %: {pnl_pct:.2f}%")
                         print(f"  Buy Sig: {buy['signature']}")
                         print(f"  Sell Sig: {sell['signature']}")
-                        print(f"  🔗 Verify Buy:  {self._get_solscan_url(buy['signature'])}")
-                        print(f"  🔗 Verify Sell: {self._get_solscan_url(sell['signature'])}")
+                        print(f"  🔗 Verify Buy:  {get_solscan_url(buy['signature'])}")
+                        print(f"  🔗 Verify Sell: {get_solscan_url(sell['signature'])}")
                         if abs(pnl_pct) > 1000:
                             print(f"  ⚠️ WARNING: PnL exceeds 1000%! Verify amounts on Solscan.")
                         print()
@@ -1147,7 +698,7 @@ class SolanaCopyTradingAnalyzer:
                     matched.append(trade_match)
 
                     #Print formatted trade details
-                    self._print_trade_match(trade_match, len(matched))
+                    print_trade_match(trade_match, len(matched))
                     
                     buys.pop(0)  #Remove matched buy
         
@@ -1268,109 +819,6 @@ class SolanaCopyTradingAnalyzer:
 
         return latency_data
     
-    def _calculate_risk_metrics(self) -> Dict[str, float]:
-        """
-        Calculate Sharpe ratio, max drawdown, and max draw-up from trades
-
-        Returns:
-            Dict containing:
-                - sharpe_ratio: Annualized Sharpe ratio (assuming 0% risk-free rate)
-                - max_drawdown: Maximum drawdown percentage
-                - max_drawdown_duration: Duration of max drawdown in days
-                - max_drawup: Maximum draw-up percentage (most account was up)
-                - max_drawup_duration: Duration of max draw-up in days
-        """
-        if self.trades_df.empty:
-            return {
-                'sharpe_ratio': 0.0,
-                'max_drawdown': 0.0,
-                'max_drawdown_duration': 0.0,
-                'max_drawup': 0.0,
-                'max_drawup_duration': 0.0
-            }
-
-        # Sort trades by sell time
-        df_sorted = self.trades_df.sort_values('sell_time').copy()
-
-        # Calculate cumulative returns (as percentage points)
-        df_sorted['cumulative_pnl'] = df_sorted['pnl_pct'].cumsum()
-
-        # Calculate Sharpe Ratio
-        # Using returns (pnl_pct) as the periodic returns
-        returns = df_sorted['pnl_pct'].values
-
-        if len(returns) > 1:
-            mean_return = np.mean(returns)
-            std_return = np.std(returns, ddof=1)
-
-            if std_return > 0:
-                # Calculate average trade frequency to annualize
-                time_diff = (df_sorted['sell_time'].max() - df_sorted['sell_time'].min()).total_seconds()
-                days_elapsed = time_diff / 86400
-
-                if days_elapsed > 0:
-                    trades_per_day = len(returns) / days_elapsed
-                    trades_per_year = trades_per_day * 365
-
-                    # Annualized Sharpe ratio
-                    sharpe_ratio = (mean_return / std_return) * np.sqrt(trades_per_year)
-                else:
-                    sharpe_ratio = 0.0
-            else:
-                sharpe_ratio = 0.0
-        else:
-            sharpe_ratio = 0.0
-
-        # Calculate Maximum Drawdown
-        cumulative = df_sorted['cumulative_pnl'].values
-        running_max = np.maximum.accumulate(cumulative)
-        drawdown = cumulative - running_max
-
-        max_drawdown = np.min(drawdown)
-
-        # Calculate max drawdown duration
-        max_dd_duration = 0.0
-        if max_drawdown < 0:
-            # Find the index of max drawdown
-            max_dd_idx = np.argmin(drawdown)
-
-            # Find the peak before this drawdown
-            peak_idx = np.argmax(cumulative[:max_dd_idx + 1])
-
-            if peak_idx < max_dd_idx:
-                duration_seconds = (df_sorted.iloc[max_dd_idx]['sell_time'] -
-                                  df_sorted.iloc[peak_idx]['sell_time']).total_seconds()
-                max_dd_duration = duration_seconds / 86400  # Convert to days
-
-        # Calculate Maximum Draw-up (opposite of drawdown)
-        # Maximum increase from a trough (running minimum) to a subsequent peak
-        running_min = np.minimum.accumulate(cumulative)
-        drawup = cumulative - running_min
-
-        max_drawup = np.max(drawup)
-
-        # Calculate max draw-up duration
-        max_du_duration = 0.0
-        if max_drawup > 0:
-            # Find the index of max draw-up
-            max_du_idx = np.argmax(drawup)
-
-            # Find the trough before this draw-up
-            trough_idx = np.argmin(cumulative[:max_du_idx + 1])
-
-            if trough_idx < max_du_idx:
-                duration_seconds = (df_sorted.iloc[max_du_idx]['sell_time'] -
-                                  df_sorted.iloc[trough_idx]['sell_time']).total_seconds()
-                max_du_duration = duration_seconds / 86400  # Convert to days
-
-        return {
-            'sharpe_ratio': sharpe_ratio,
-            'max_drawdown': max_drawdown,
-            'max_drawdown_duration': max_dd_duration,
-            'max_drawup': max_drawup,
-            'max_drawup_duration': max_du_duration
-        }
-
     def _filter_outliers_from_trades(self):
         """
         Filter extreme outliers from trades based on P/L percentage thresholds
@@ -1434,10 +882,7 @@ def analyze_transaction(signature: str,
     print(f"{'='*80}\n")
 
     # Determine which method to use
-    if helius_api_key:
-        result = _analyze_transaction_helius(signature, helius_api_key)
-    else:
-        return None
+    result = _analyze_transaction_helius(signature, helius_api_key)
 
     # Print formatted results
     _print_transaction_analysis(result)
