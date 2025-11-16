@@ -110,11 +110,17 @@ if (full_analyze):
 
 
 #########################
-    #full_solana_analysis("9EibckQ6Jdfnhb4uAG352KaepYXspRrcNwFjC7xkvRXx", 
-    #    "CFS2db3cag9A3G8P5NHT3sbFTcvDeXW4WXgWn6tQcs74", 1000)
+    full_solana_analysis("9EibckQ6Jdfnhb4uAG352KaepYXspRrcNwFjC7xkvRXx", 
+        "FPAeapSTb5H33Jmm2cZXEJhBP2MdHYgoecxTmChHrocV", 1000)
 
-    full_analyses([
-        "2fg5QD1eD7rzNNCsvnhmXFm5hqNgwTTG8p7kQ6f3rx6f",
+    #8deJ9xeUvXSJwicYptA9mHsU2rN2pDx37KWzkDkEXhU6
+    #ADENywZuaxmt9Ar8Hju9z4zMYktjTLTVecDrDENrTsKF
+    #FPAeapSTb5H33Jmm2cZXEJhBP2MdHYgoecxTmChHrocV
+    #CU3ErWQvUQhxiLE8Kvo6NsYujTudYLUAJ1qogVkMJQ1r
+    #TTdzckfwm7Y46gUULe6zmwC9z5pV1o5qaKkvAbAvXvY  ?
+
+    #full_analyses([
+    #    "2fg5QD1eD7rzNNCsvnhmXFm5hqNgwTTG8p7kQ6f3rx6f",
         #"JDuqZT2f8nzNWMSLYo8LWfYDV34Zgj7zYGqp1y9SPXai",
         #"CFS2db3cag9A3G8P5NHT3sbFTcvDeXW4WXgWn6tQcs74",
         #"7CXbEAX4GTBur2te85FyZkWitk97NX5adJN9cevWJfg2",
@@ -125,7 +131,7 @@ if (full_analyze):
           #"EZk34zBM6cCCzzWARz5uG7P592bpjB2cEfXLvSNYvNNu",
           #"3wNnJCa1Z37uD2tMYkHPMi3MHmcQdYJ4wpvyk4xb6Qck",
           #"CZD26AV4yxX2x7Z9jDsSEQiCLcTpkZejAbjEmCD6ntEk"
-    ])
+    #])
 
     
 

@@ -111,7 +111,7 @@ class SolanaCopyTradingAnalyzer:
         
         #Calculate latency if target wallet provided
         if self.target_wallet:
-            print(f"\n⚡ Fetching target wallet trades...")
+            print(f"\n⚡ Fetching target wallet trades... for wallet {self.target_wallet}")
             target_txs = self._fetch_trades(self.target_wallet, limit)
 
             print("📊 Calculating copy latency...")
@@ -238,20 +238,20 @@ class SolanaCopyTradingAnalyzer:
             print('LOOKING FOR CACHE');
             if not self._get_cached_trade_results(wallet):
                 # Fetch fresh data
-                self._fetch_trades_raw(self.main_wallet, limit)
+                self._fetch_trades_raw(wallet, limit)
 
                 # Write to cache file
                 print('WRITING TO CACHE');
                 self._write_to_trades_cache(wallet)
         else: 
             # Fetch fresh data
-            self._fetch_trades_raw(self.main_wallet, limit)
+            self._fetch_trades_raw(wallet, limit)
 
         return self.bot_txs
 
     def _fetch_trades_raw(self, wallet: str, limit: int = 1000): 
         # Fetch fresh data
-        self.bot_txs = self._fetch_trades_helius(self.main_wallet, limit)
+        self.bot_txs = self._fetch_trades_helius(wallet, limit)
 
     def _fetch_trades_helius(self, wallet: str, limit: int = 1000, include_transfers: bool = False) -> List[Dict]:
         """
