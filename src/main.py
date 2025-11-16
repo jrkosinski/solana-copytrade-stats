@@ -71,7 +71,6 @@ def quick_analyses(main_wallets):
     for wallet in main_wallets: 
         quick_solana_analysis(wallet, None, 1000)
 
-
 def full_analyses(main_wallets):
     for wallet in main_wallets:
         full_solana_analysis(wallet, None, 3000, save_plots=True)
@@ -115,7 +114,7 @@ if (full_analyze):
     #    "CFS2db3cag9A3G8P5NHT3sbFTcvDeXW4WXgWn6tQcs74", 1000)
 
     full_analyses([
-        "9EibckQ6Jdfnhb4uAG352KaepYXspRrcNwFjC7xkvRXx",
+        "2fg5QD1eD7rzNNCsvnhmXFm5hqNgwTTG8p7kQ6f3rx6f",
         #"JDuqZT2f8nzNWMSLYo8LWfYDV34Zgj7zYGqp1y9SPXai",
         #"CFS2db3cag9A3G8P5NHT3sbFTcvDeXW4WXgWn6tQcs74",
         #"7CXbEAX4GTBur2te85FyZkWitk97NX5adJN9cevWJfg2",

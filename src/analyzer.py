@@ -8,7 +8,7 @@ import json
 from web3 import Web3
 from trading_plotter import TradingPlotter
 from trading_reporter import TradingReporter
-from utils import get_solscan_url, print_trade_match
+from utils import get_solscan_url, print_trade_match, print_transaction_analysis
 
 
 class SolanaCopyTradingAnalyzer:
@@ -47,6 +47,9 @@ class SolanaCopyTradingAnalyzer:
         self.filter_to_matched_only = filter_to_matched_only
         self.use_cache = use_cache
 
+        if (helius_api_key is None): 
+            raise OSError("No helius API key detected")
+
         if not self.target_wallet:
             self.filter_to_matched_only = False
 
@@ -76,7 +79,7 @@ class SolanaCopyTradingAnalyzer:
         self.target_txs = []
         self.trades = []
       
-    
+ 
     def analyze_wallet(self, limit: int = 1000):
         """
         Main analysis function - orchestrates fetching, matching, and analyzing trades
@@ -885,7 +888,7 @@ def analyze_transaction(signature: str,
     result = _analyze_transaction_helius(signature, helius_api_key)
 
     # Print formatted results
-    _print_transaction_analysis(result)
+    print_transaction_analysis(result)
 
     return result
 
@@ -1152,68 +1155,3 @@ def _analyze_transaction_helius(signature: str, helius_api_key: str) -> Dict:
             'signature': signature
         }
 
-
-def _print_transaction_analysis(result: Dict):
-    """
-    Print formatted transaction analysis results
-
-    Args:
-        result: Transaction analysis dictionary
-    """
-
-    if not result.get('success'):
-        print(f"❌ Transaction Error: {result.get('error', 'Unknown error')}")
-        return
-
-    print(f"✅ Transaction Status: SUCCESS")
-    print(f"📅 Timestamp: {result['datetime']}")
-
-    slot = result.get('slot')
-    if slot is not None:
-        print(f"🎰 Slot: {slot}")
-
-    slot_leader = result.get('slot_leader')
-    if slot_leader:
-        print(f"👑 Slot Leader: {slot_leader[:8]}...{slot_leader[-6:]}")
-        print(f"   Full Address: {slot_leader}")
-
-    print(f"💸 Fee: {result['fee']:.6f} SOL")
-    if result.get('type'):
-        print(f"🔖 Type: {result['type']}")
-
-    print(f"\n{'='*80}")
-    print(f"👥 PARTICIPANTS ({len(result['participants'])})")
-    print(f"{'='*80}")
-    for i, participant in enumerate(result['participants'], 1):
-        print(f"{i}. {participant}")
-
-    if not result['swaps']:
-        print(f"\n⚠️ No swaps detected in this transaction")
-        return
-
-    print(f"\n{'='*80}")
-    print(f"🔄 SWAPS DETECTED ({len(result['swaps'])})")
-    print(f"{'='*80}")
-
-    for i, swap in enumerate(result['swaps'], 1):
-        print(f"\n--- Swap #{i} ---")
-        print(f"Trader: {swap['trader_short']}")
-        print(f"Full Address: {swap['trader']}")
-
-        print(f"\n  📤 SOLD (What was traded away):")
-        for token in swap['tokens_sold']:
-            print(f"    • {token['amount']:.8f} {token['symbol']}")
-            print(f"      Mint: {token['mint']}")
-
-        print(f"\n  📥 BOUGHT (What was received):")
-        for token in swap['tokens_bought']:
-            print(f"    • {token['amount']:.8f} {token['symbol']}")
-            print(f"      Mint: {token['mint']}")
-
-        if 'exchange_rate' in swap:
-            print(f"\n  💱 Exchange Rate:")
-            print(f"    {swap['exchange_rate']['description']}")
-
-    print(f"\n{'='*80}")
-    print(f"🔗 View on Solscan: https://solscan.io/tx/{result['signature']}")
-    print(f"{'='*80}\n")

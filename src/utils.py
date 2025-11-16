@@ -20,7 +20,6 @@ def get_solscan_url(signature: str) -> str:
     """
     return f"https://solscan.io/tx/{signature}"
 
-
 def print_trade_match(trade: Dict, trade_num: int):
     """
     Print formatted trade match details to console
@@ -93,3 +92,71 @@ def print_trade_match(trade: Dict, trade_num: int):
     print(f"---")
     print(f"PROFIT:        {profit_indicator}{profit_raw:.4f} {trade['proceeds_token']} ({pnl_indicator}{pnl_pct:.2f}%)")
     print(f"{'='*70}")
+
+def get_token_trades(wallet: str, token_mint: str): 
+    print('TO IMPLEMENT')
+
+def print_transaction_analysis(result: Dict):
+    """
+    Print formatted transaction analysis results
+
+    Args:
+        result: Transaction analysis dictionary
+    """
+
+    if not result.get('success'):
+        print(f"❌ Transaction Error: {result.get('error', 'Unknown error')}")
+        return
+
+    print(f"✅ Transaction Status: SUCCESS")
+    print(f"📅 Timestamp: {result['datetime']}")
+
+    slot = result.get('slot')
+    if slot is not None:
+        print(f"🎰 Slot: {slot}")
+
+    slot_leader = result.get('slot_leader')
+    if slot_leader:
+        print(f"👑 Slot Leader: {slot_leader[:8]}...{slot_leader[-6:]}")
+        print(f"   Full Address: {slot_leader}")
+
+    print(f"💸 Fee: {result['fee']:.6f} SOL")
+    if result.get('type'):
+        print(f"🔖 Type: {result['type']}")
+
+    print(f"\n{'='*80}")
+    print(f"👥 PARTICIPANTS ({len(result['participants'])})")
+    print(f"{'='*80}")
+    for i, participant in enumerate(result['participants'], 1):
+        print(f"{i}. {participant}")
+
+    if not result['swaps']:
+        print(f"\n⚠️ No swaps detected in this transaction")
+        return
+
+    print(f"\n{'='*80}")
+    print(f"🔄 SWAPS DETECTED ({len(result['swaps'])})")
+    print(f"{'='*80}")
+
+    for i, swap in enumerate(result['swaps'], 1):
+        print(f"\n--- Swap #{i} ---")
+        print(f"Trader: {swap['trader_short']}")
+        print(f"Full Address: {swap['trader']}")
+
+        print(f"\n  📤 SOLD (What was traded away):")
+        for token in swap['tokens_sold']:
+            print(f"    • {token['amount']:.8f} {token['symbol']}")
+            print(f"      Mint: {token['mint']}")
+
+        print(f"\n  📥 BOUGHT (What was received):")
+        for token in swap['tokens_bought']:
+            print(f"    • {token['amount']:.8f} {token['symbol']}")
+            print(f"      Mint: {token['mint']}")
+
+        if 'exchange_rate' in swap:
+            print(f"\n  💱 Exchange Rate:")
+            print(f"    {swap['exchange_rate']['description']}")
+
+    print(f"\n{'='*80}")
+    print(f"🔗 View on Solscan: https://solscan.io/tx/{result['signature']}")
+    print(f"{'='*80}\n")
