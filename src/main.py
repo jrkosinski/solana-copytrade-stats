@@ -28,7 +28,8 @@ def quick_solana_analysis(main_wallet: str,
     analyzer = SolanaCopyTradingAnalyzer(
         main_wallet=main_wallet,
         target_wallet=target_wallet,
-        helius_api_key=helius_api_key
+        helius_api_key=helius_api_key,
+        use_cache=True
     )
     
     # Run analysis
@@ -92,9 +93,77 @@ def analyze_tx(signature: str):
 
     return analyze_transaction(signature, helius_api_key)
 
-def analyze_txs(signatures): 
+def analyze_txs(signatures):
     for sig in signatures:
         analyze_tx(sig)
+
+def find_copy_target(main_wallet: str,
+                     lookback_blocks: int = 10,
+                     min_correlation_score: int = 2,
+                     num_trades_to_analyze: int = 5,
+                     limit: int = 100):
+    """
+    Find potential copy-trading targets for a bot wallet
+
+    This analyzes the bot's trade history and looks for wallets that
+    consistently traded the same tokens shortly before the bot.
+
+    Args:
+        main_wallet: Bot wallet address to analyze
+        lookback_blocks: How many blocks to look backwards from each trade
+        min_correlation_score: Minimum number of matching trade pairs required
+        num_trades_to_analyze: Number of bot's trades to analyze (smaller = faster)
+        limit: How many transactions to fetch from bot
+
+    Returns:
+        Dictionary with:
+        - candidates: Ranked list of potential copy targets
+        - analysis: Per-trade breakdown
+        - summary: Overall statistics
+
+    Example:
+        >>> result = find_copy_target("9EibckQ6Jdfnhb4uAG352KaepYXspRrcNwFjC7xkvRXx")
+        >>> for candidate in result['candidates'][:3]:
+        ...     print(f"{candidate['wallet']}: {candidate['score']} matches")
+    """
+    from src.utils import find_copy_trading_targets
+
+    helius_api_key = os.getenv('HELIUS_API_KEY')
+    if not helius_api_key:
+        raise ValueError("HELIUS_API_KEY environment variable not set")
+
+    print(f"🔍 Finding copy-trading targets for {main_wallet[:8]}...")
+    print("=" * 80)
+
+    # Step 1: Analyze bot's trades
+    analyzer = SolanaCopyTradingAnalyzer(
+        main_wallet=main_wallet,
+        target_wallet=None,
+        helius_api_key=helius_api_key
+    )
+
+    trades_df = analyzer.analyze_wallet(limit=limit)
+    matched_trades = analyzer.trades
+
+    if not matched_trades:
+        print("❌ No matched trade pairs found")
+        return None
+
+    print(f"✅ Found {len(matched_trades)} matched trade pairs")
+
+    # Step 2: Find correlation
+    num_to_analyze = min(num_trades_to_analyze, len(matched_trades))
+    print(f"Analyzing {num_to_analyze} trades...")
+
+    result = find_copy_trading_targets(
+        bot_trades=matched_trades[:num_to_analyze],
+        helius_api_key=helius_api_key,
+        lookback_blocks=lookback_blocks,
+        min_correlation_score=min_correlation_score,
+        bot_wallet=main_wallet
+    )
+
+    return result
 
 full_analyze = True
 
@@ -111,8 +180,14 @@ if (full_analyze):
 
 #########################
     full_solana_analysis("9EibckQ6Jdfnhb4uAG352KaepYXspRrcNwFjC7xkvRXx", 
-        "FPAeapSTb5H33Jmm2cZXEJhBP2MdHYgoecxTmChHrocV", 1000)
+        "4TqoBiBYPKVjd2oENupLKHCLTNTZGEng1LMraoN2e3yZ", 
+        1000)
 
+    #Confirmed:
+    #4CoXh8R1QbbazXrftAx8HDAnUe9uqPJC1TPcZWayTpdi
+    #4TqoBiBYPKVjd2oENupLKHCLTNTZGEng1LMraoN2e3yZ
+
+    #Not Confirmed
     #8deJ9xeUvXSJwicYptA9mHsU2rN2pDx37KWzkDkEXhU6
     #ADENywZuaxmt9Ar8Hju9z4zMYktjTLTVecDrDENrTsKF
     #FPAeapSTb5H33Jmm2cZXEJhBP2MdHYgoecxTmChHrocV
