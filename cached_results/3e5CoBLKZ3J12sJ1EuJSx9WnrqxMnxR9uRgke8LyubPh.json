@@ -1,0 +1,44 @@
+[
+  {
+    "signature": "5W1hNdEdkkFenBNc6BbYH6VQnGowbN6mB9m39Mf52uEAXQUGXX5bJpw1vU6am1WvZoXizdovi7XTRcAAdo374SqB",
+    "timestamp": 1763428615,
+    "slot": 380790419,
+    "token_in": "CzNnV3iGD9AeNNf1ShUpSH82zqd4aex1LWtm8YH3pump",
+    "token_in_symbol": "CzNnV3iG",
+    "token_in_amount": 111358.378042,
+    "token_out": "So11111111111111111111111111111111111111112",
+    "token_out_symbol": "So111111",
+    "token_out_amount": 0.014522511,
+    "fee": 0.000105,
+    "success": true,
+    "is_transfer": false
+  },
+  {
+    "signature": "5h2WWxr2VJ9FuiWozfDiZHFgDk5bp8ocdimtMoFcbGkrdzgvRibcFyTTsmiG4UHQRc7h7Qpyn7BQexntabftv93w",
+    "timestamp": 1763269341,
+    "slot": 380389895,
+    "token_in": "6Vik7Zf4biqGXZbpm8DCZUtvJQvTvc2vAhTx6yNupump",
+    "token_in_symbol": "6Vik7Zf4",
+    "token_in_amount": 21048.581071,
+    "token_out": "So11111111111111111111111111111111111111112",
+    "token_out_symbol": "So111111",
+    "token_out_amount": 0.0991566,
+    "fee": 0.000105,
+    "success": true,
+    "is_transfer": false
+  },
+  {
+    "signature": "2Upmrszzs6zWXpgPpJg2wkEh7HmJTbM94w2EhkJK272oKywpXDm7MNwGVEECjdWmc6TkyaX6zzmxefS6tnDq2MXA",
+    "timestamp": 1763241852,
+    "slot": 380320682,
+    "token_in": "6kJndkQUjQ8Gh7WbXax9P2Hda9YjYDeuNqfhTwqDpump",
+    "token_in_symbol": "6kJndkQU",
+    "token_in_amount": 132987.942148,
+    "token_out": "So11111111111111111111111111111111111111112",
+    "token_out_symbol": "So111111",
+    "token_out_amount": 0.114234727,
+    "fee": 0.000105,
+    "success": true,
+    "is_transfer": false
+  }
+]
