@@ -8,7 +8,7 @@ import json
 from web3 import Web3
 from trading_plotter import TradingPlotter
 from trading_reporter import TradingReporter
-from utils import get_solscan_url, print_trade_match, print_transaction_analysis
+from utils import get_solscan_url, print_trade_match, print_transaction_analysis, is_base_currency, is_sol
 
 
 class SolanaCopyTradingAnalyzer:
@@ -181,7 +181,7 @@ class SolanaCopyTradingAnalyzer:
 
     #=============================================================================================================
      
-    def _get_cached_trade_results(self, wallet: str) -> bool:
+    def _get_cached_trade_results(self, wallet: str) -> Tuple[bool, List[Dict]]:
         """
         Load previously cached trade data from JSON file
 
@@ -192,21 +192,22 @@ class SolanaCopyTradingAnalyzer:
             True if cache loaded successfully, False otherwise
         """ 
         cache_file = self._get_cache_file_name(wallet)
+        txs = {}
 
         print(f"Checking for  {cache_file}")
         if os.path.exists(cache_file):
             print(f"📂 Loading cached trades from {cache_file}")
             try:
                 with open(cache_file, 'r') as f:
-                    self.bot_txs = json.load(f)
+                    txs = json.load(f)
                 print(f"   Loaded {len(self.bot_txs)} cached trades")
-                return True
+                return True, txs
             except Exception as e:
                 print(f"   Error loading cache: {e}, fetching fresh data...")
 
-        return False
+        return False, {}
 
-    def _write_to_trades_cache(self, wallet: str):
+    def _write_to_trades_cache(self, wallet: str, transactions: List[Dict]):
         """
         Save trade data to JSON cache file
 
@@ -217,8 +218,8 @@ class SolanaCopyTradingAnalyzer:
 
         try:
             with open(cache_file, 'w') as f:
-                json.dump(self.bot_txs, f, indent=2)
-            print(f"💾 Cached {len(self.bot_txs)} trades to {cache_file}")
+                json.dump(transactions, f, indent=2)
+            print(f"💾 Cached {len(transactions)} trades to {cache_file}")
         except Exception as e:
             print(f"   Warning: Could not write cache file: {e}")
     
@@ -233,25 +234,29 @@ class SolanaCopyTradingAnalyzer:
             wallet: Wallet address to fetch trades for
             limit: API request limit per call
         """
+        txs = {}
+
         # Check for cached data
         if (self.use_cache):
-            print('LOOKING FOR CACHE');
-            if not self._get_cached_trade_results(wallet):
+            cache_success, txs = self._get_cached_trade_results(wallet)
+            if not cache_success:
                 # Fetch fresh data
-                self._fetch_trades_raw(wallet, limit)
+                txs = self._fetch_trades_raw(wallet, limit)
 
                 # Write to cache file
                 print('WRITING TO CACHE');
-                self._write_to_trades_cache(wallet)
+                self._write_to_trades_cache(wallet, txs)
+            else: 
+                return txs
         else: 
             # Fetch fresh data
-            self._fetch_trades_raw(wallet, limit)
+            txs = self._fetch_trades_raw(wallet, limit)
 
-        return self.bot_txs
+        return txs
 
-    def _fetch_trades_raw(self, wallet: str, limit: int = 1000): 
+    def _fetch_trades_raw(self, wallet: str, limit: int = 1000):
         # Fetch fresh data
-        self.bot_txs = self._fetch_trades_helius(wallet, limit)
+        return self._fetch_trades_helius(wallet, limit, include_transfers=True)
 
     def _fetch_trades_helius(self, wallet: str, limit: int = 1000, include_transfers: bool = False) -> List[Dict]:
         """
@@ -277,6 +282,7 @@ class SolanaCopyTradingAnalyzer:
         #before = '2Bx48yAZTTR4RUUshm9EpYbYXhfouh3aVNy3p57EVe8GUTypiXPcxnmZXFuso2w34UUuNLfLzseURhFzLzWkddND'
         #before = '26zhCktvwtkTVj77V6svRDvPnzvEPiQWoP2U27TaibYejDdyDyk5eU2emgsSaHAGBQR9D49nWtAcvUKKUAWFq65r'
         before = ''
+        prevBefore = ''
 
         while (count < limit):
             params = {
@@ -289,9 +295,14 @@ class SolanaCopyTradingAnalyzer:
             if not include_transfers:
                 params['type'] = 'SWAP'  # Filter for swaps only
             print(before)
+
+            # we are just looping here, nothing more to be found
+            if (len(prevBefore) > 0 and prevBefore == before):
+                break
             
-            #try:
-            if (True):
+            prevBefore = before
+            
+            try:
                 response = requests.get(url, params=params)
                 #print(url)
                 #print(params)
@@ -304,7 +315,7 @@ class SolanaCopyTradingAnalyzer:
                     count = count + 1
 
                     if type(tx) is str:
-                        print(f"TX IS A STR: {tx}")
+                        print(f"Invalid TX data or error: {tx} {data}")
                         continue
 
                     tx_type = tx.get('type')
@@ -323,16 +334,16 @@ class SolanaCopyTradingAnalyzer:
                                 print(f"Transfer {i}: {json.dumps(transfer, indent=2)}")
                             print("==========================================\n")
 
-                        #Debug: Print detailed token amount info for first 5 trades
-                        if count <= 5:
-                            print(f"\n--- DEBUG Trade #{count} (Sig: {tx.get('signature', 'N/A')[:16]}) ---")
+                        #Debug: Print detailed token amount info for first 5000 trades
+                        if count <= 5000:
+                            print(f"\n--- DEBUG Trade #{count} (Sig: {tx.get('signature', 'N/A')}) ---")
                             print(f"Transaction type: {tx.get('type')}")
                             print(f"Number of token transfers: {len(token_transfers)}")
                             for i, transfer in enumerate(token_transfers):
                                 print(f"\nTransfer #{i}:")
-                                print(f"  Mint: {transfer.get('mint', 'N/A')[:16]}...")
-                                print(f"  From: {transfer.get('fromUserAccount', 'N/A')[:16]}...")
-                                print(f"  To: {transfer.get('toUserAccount', 'N/A')[:16]}...")
+                                print(f"  Mint: {transfer.get('mint', 'N/A')}...")
+                                print(f"  From: {transfer.get('fromUserAccount', 'N/A')}...")
+                                print(f"  To: {transfer.get('toUserAccount', 'N/A')}...")
                                 print(f"  tokenAmount (UI): {transfer.get('tokenAmount', 'N/A')}")
                                 print(f"  decimals: {transfer.get('decimals', 'N/A')}")
                                 #Check for raw amount if available
@@ -354,7 +365,7 @@ class SolanaCopyTradingAnalyzer:
                         for transfer in token_transfers:
                             mint = transfer.get('mint')
                             amount = transfer.get('tokenAmount', 0)
-                            symbol = transfer.get('tokenSymbol', mint[:8] if mint else 'Unknown')
+                            symbol = transfer.get('tokenSymbol', mint if mint else 'Unknown')
 
                             # If fromUserAccount matches our wallet, this token is going OUT (token_in)
                             if transfer.get('fromUserAccount') == wallet:
@@ -370,73 +381,85 @@ class SolanaCopyTradingAnalyzer:
 
                         # Handle TRANSFER vs SWAP differently
                         if tx_type == 'TRANSFER':
-                            # For transfers, we only care about tokens coming IN
-                            if not token_out_by_mint:
+                            # Check if this is actually a bidirectional swap (has both token_in and token_out)
+                            # This happens with Jupiter swaps that Helius classifies as TRANSFER
+                            if token_in_by_mint and token_out_by_mint:
+                                # This is actually a swap! Treat it like a normal SWAP transaction
+                                # Fall through to the SWAP logic below
+                                pass
+                            else:
+                                # This is a true one-way transfer, only care about tokens coming IN
+                                if not token_out_by_mint:
+                                    continue
+
+                                # Get the transferred token
+                                token_out_mint = max(token_out_by_mint.items(), key=lambda x: x[1]['amount'])[0]
+                                token_out_data = {
+                                    'mint': token_out_mint,
+                                    'tokenAmount': token_out_by_mint[token_out_mint]['amount'],
+                                    'tokenSymbol': token_out_by_mint[token_out_mint]['symbol']
+                                }
+
+                                # For transfers, we mark token_in as 'TRANSFER' to indicate we need to look up the price
+                                trade = {
+                                    'signature': tx.get('signature'),
+                                    'timestamp': tx.get('timestamp'),
+                                    'slot': tx.get('slot'),
+                                    'token_in': 'TRANSFER',  # Special marker
+                                    'token_in_symbol': 'TRANSFER',
+                                    'token_in_amount': 0,  # Will be calculated from market price
+                                    'token_out': token_out_data.get('mint', ''),
+                                    'token_out_symbol': token_out_data.get('tokenSymbol', token_out_data.get('mint', 'Unknown') if token_out_data.get('mint') else 'Unknown'),
+                                    'token_out_amount': token_out_data.get('tokenAmount', 0),
+                                    'fee': tx.get('fee', 0) / 1e9,  # Convert to SOL
+                                    'success': tx.get('transactionError') is None,
+                                    'is_transfer': True,
+                                    'from_account': token_transfers[0].get('fromUserAccount', 'Unknown') if token_transfers else 'Unknown'
+                                }
+
+                                # Append the transfer and continue to next transaction
+                                trades.append(trade)
+                                before = tx.get('signature')
                                 continue
 
-                            # Get the transferred token
-                            token_out_mint = max(token_out_by_mint.items(), key=lambda x: x[1]['amount'])[0]
-                            token_out_data = {
-                                'mint': token_out_mint,
-                                'tokenAmount': token_out_by_mint[token_out_mint]['amount'],
-                                'tokenSymbol': token_out_by_mint[token_out_mint]['symbol']
-                            }
+                        # SWAP logic (handles both SWAP type and bidirectional TRANSFER type)
+                        # Skip if we couldn't identify both sides of the swap
+                        if not token_in_by_mint or not token_out_by_mint:
+                            continue
 
-                            # For transfers, we mark token_in as 'TRANSFER' to indicate we need to look up the price
-                            trade = {
-                                'signature': tx.get('signature'),
-                                'timestamp': tx.get('timestamp'),
-                                'slot': tx.get('slot'),
-                                'token_in': 'TRANSFER',  # Special marker
-                                'token_in_symbol': 'TRANSFER',
-                                'token_in_amount': 0,  # Will be calculated from market price
-                                'token_out': token_out_data.get('mint', ''),
-                                'token_out_symbol': token_out_data.get('tokenSymbol', token_out_data.get('mint', 'Unknown')[:8] if token_out_data.get('mint') else 'Unknown'),
-                                'token_out_amount': token_out_data.get('tokenAmount', 0),
-                                'fee': tx.get('fee', 0) / 1e9,  # Convert to SOL
-                                'success': tx.get('transactionError') is None,
-                                'is_transfer': True,
-                                'from_account': token_transfers[0].get('fromUserAccount', 'Unknown') if token_transfers else 'Unknown'
-                            }
-                        else:
-                            # SWAP logic (original code)
-                            # Skip if we couldn't identify both sides of the swap
-                            if not token_in_by_mint or not token_out_by_mint:
-                                continue
+                        # Identify the main swap pair (largest amounts)
+                        # Token IN: what we spent (should be only one type, e.g., SOL)
+                        # Token OUT: what we received (the token we're buying)
+                        token_in_mint = max(token_in_by_mint.items(), key=lambda x: x[1]['amount'])[0]
+                        token_out_mint = max(token_out_by_mint.items(), key=lambda x: x[1]['amount'])[0]
 
-                            # Identify the main swap pair (largest amounts)
-                            # Token IN: what we spent (should be only one type, e.g., SOL)
-                            # Token OUT: what we received (the token we're buying)
-                            token_in_mint = max(token_in_by_mint.items(), key=lambda x: x[1]['amount'])[0]
-                            token_out_mint = max(token_out_by_mint.items(), key=lambda x: x[1]['amount'])[0]
+                        token_in_data = {
+                            'mint': token_in_mint,
+                            'tokenAmount': token_in_by_mint[token_in_mint]['amount'],
+                            'tokenSymbol': token_in_by_mint[token_in_mint]['symbol']
+                        }
+                        token_out_data = {
+                            'mint': token_out_mint,
+                            'tokenAmount': token_out_by_mint[token_out_mint]['amount'],
+                            'tokenSymbol': token_out_by_mint[token_out_mint]['symbol']
+                        }
 
-                            token_in_data = {
-                                'mint': token_in_mint,
-                                'tokenAmount': token_in_by_mint[token_in_mint]['amount'],
-                                'tokenSymbol': token_in_by_mint[token_in_mint]['symbol']
-                            }
-                            token_out_data = {
-                                'mint': token_out_mint,
-                                'tokenAmount': token_out_by_mint[token_out_mint]['amount'],
-                                'tokenSymbol': token_out_by_mint[token_out_mint]['symbol']
-                            }
-
-                            #Extract symbols from token transfers - Helius may provide this as 'tokenSymbol' or in tokenStandard
-                            #If not available, we'll need to fetch it separately
-                            trade = {
-                                'signature': tx.get('signature'),
-                                'timestamp': tx.get('timestamp'),
-                                'slot': tx.get('slot'),
-                                'token_in': token_in_data.get('mint', ''),
-                                'token_in_symbol': token_in_data.get('tokenSymbol', token_in_data.get('mint', 'Unknown')[:8] if token_in_data.get('mint') else 'Unknown'),
-                                'token_in_amount': abs(token_in_data.get('tokenAmount', 0)),
-                                'token_out': token_out_data.get('mint', ''),
-                                'token_out_symbol': token_out_data.get('tokenSymbol', token_out_data.get('mint', 'Unknown')[:8] if token_out_data.get('mint') else 'Unknown'),
-                                'token_out_amount': token_out_data.get('tokenAmount', 0),
-                                'fee': tx.get('fee', 0) / 1e9,  #Convert to SOL
-                                'success': tx.get('transactionError') is None,
-                                'is_transfer': False
-                            }
+                        #Extract symbols from token transfers - Helius may provide this as 'tokenSymbol' or in tokenStandard
+                        #If not available, we'll need to fetch it separately
+                        trade = {
+                            'signature': tx.get('signature'),
+                            'timestamp': tx.get('timestamp'),
+                            'slot': tx.get('slot'),
+                            'token_in': token_in_data.get('mint', ''),
+                            'token_in_symbol': token_in_data.get('tokenSymbol', token_in_data.get('mint', 'Unknown') if token_in_data.get('mint') else 'Unknown'),
+                            'token_in_amount': abs(token_in_data.get('tokenAmount', 0)),
+                            'token_out': token_out_data.get('mint', ''),
+                            'token_out_symbol': token_out_data.get('tokenSymbol', token_out_data.get('mint', 'Unknown') if token_out_data.get('mint') else 'Unknown'),
+                            'token_out_amount': token_out_data.get('tokenAmount', 0),
+                            'fee': tx.get('fee', 0) / 1e9,  #Convert to SOL
+                            'success': tx.get('transactionError') is None,
+                            'is_transfer': False
+                        }
 
                         # Sanity check: token_in and token_out should be different
                         if trade['token_in'] == trade['token_out']:
@@ -462,6 +485,8 @@ class SolanaCopyTradingAnalyzer:
                         before = tx.get('signature')
                 
                 print(f"   Found {len(trades)} trades out of {count})")
+            except Exception as e:
+                print(e)
             
         return trades
     
@@ -503,54 +528,60 @@ class SolanaCopyTradingAnalyzer:
             print(f'token in: {trade['token_in_symbol']}')
             print(f'token out: {trade['token_out_symbol']}')
 
-            if True:  # Original SWAP logic only
-                # SWAP logic (original)
-                is_stablecoin_out = trade['token_in_symbol'] in ['USDC', 'USDT', 'SOL', 'So111111']
+            # SWAP logic (original)
+            # Check if spending stablecoin/SOL (buying the other token)
+            is_stablecoin_out = is_base_currency(trade['token_in_symbol']) or is_base_currency(trade['token_in'])
 
-                if is_stablecoin_out:
-                    #Buying token_out
-                    token = trade['token_out']
-                    token_symbol = trade['token_out_symbol']
+            if is_stablecoin_out:
+                #Buying token_out
+                token = trade['token_out']
+                token_symbol = trade['token_out_symbol']
 
-                    if token not in token_positions:
+                # Skip if the token being bought is also a base currency (e.g., swapping USDC for SOL)
+                if is_base_currency(token_symbol) or is_base_currency(token):
+                    continue
+
+                if token not in token_positions:
                         token_positions[token] = {
                             'symbol': token_symbol,
                             'buys': [],
                             'sells': []
                         }
 
-                    token_positions[token]['buys'].append({
-                        'signature': trade['signature'],
-                        'timestamp': trade['timestamp'],
-                        'slot': trade['slot'],
-                        'amount': trade['token_out_amount'],
-                        'cost': trade['token_in_amount'],
-                        'cost_token': trade['token_in_symbol'],
-                        'is_transfer': False
-                    })
-                else:
-                    #Selling token_in
-                    token = trade['token_in']
-                    token_symbol = trade['token_in_symbol']
-                    print(token_symbol)
+                token_positions[token]['buys'].append({
+                    'signature': trade['signature'],
+                    'timestamp': trade['timestamp'],
+                    'slot': trade['slot'],
+                    'amount': trade['token_out_amount'],
+                    'cost': trade['token_in_amount'],
+                    'cost_token': trade['token_in_symbol'],
+                    'is_transfer': False
+                })
+            else:
+                #Selling token_in
+                token = trade['token_in']
+                token_symbol = trade['token_in_symbol']
+                print(token_symbol)
 
-                    if token not in token_positions:
-                        token_positions[token] = {
-                            'symbol': token_symbol,
-                            'buys': [],
-                            'sells': []
-                        }
+                # Skip if the token being sold is a base currency (shouldn't happen, but be safe)
+                if is_base_currency(token_symbol) or is_base_currency(token):
+                    continue
 
-                    token_positions[token]['sells'].append({
-                        'signature': trade['signature'],
-                        'timestamp': trade['timestamp'],
-                        'slot': trade['slot'],
-                        'amount': trade['token_in_amount'],
-                        'proceeds': trade['token_out_amount'],
-                        'proceeds_token': trade['token_out_symbol']
-                    })
+                if token not in token_positions:
+                    token_positions[token] = {
+                        'symbol': token_symbol,
+                        'buys': [],
+                        'sells': []
+                    }
 
-                    print(len(token_positions))
+                token_positions[token]['sells'].append({
+                    'signature': trade['signature'],
+                    'timestamp': trade['timestamp'],
+                    'slot': trade['slot'],
+                    'amount': trade['token_in_amount'],
+                    'proceeds': trade['token_out_amount'],
+                    'proceeds_token': trade['token_out_symbol']
+                })
         
         # Debug: Show summary of buys and sells before matching
         print(f"\n📊 Trade Position Summary:")
@@ -776,8 +807,8 @@ class SolanaCopyTradingAnalyzer:
                     latency_data.append({
                         'token': bot_trade.get('token_out_symbol', 'Unknown'),
                         'direction': 'BUY',
-                        'bot_sig': bot_trade['signature'][:8] + '...',
-                        'target_sig': target_trade['signature'][:8] + '...',
+                        'bot_sig': bot_trade['signature'] + '...',
+                        'target_sig': target_trade['signature'] + '...',
                         'bot_slot': bot_trade['slot'],
                         'target_slot': target_trade['slot'],
                         'slot_latency': slot_latency,
@@ -807,8 +838,8 @@ class SolanaCopyTradingAnalyzer:
                     latency_data.append({
                         'token': bot_trade.get('token_in_symbol', 'Unknown'),
                         'direction': 'SELL',
-                        'bot_sig': bot_trade['signature'][:8] + '...',
-                        'target_sig': target_trade['signature'][:8] + '...',
+                        'bot_sig': bot_trade['signature'] + '...',
+                        'target_sig': target_trade['signature'] + '...',
                         'bot_slot': bot_trade['slot'],
                         'target_slot': target_trade['slot'],
                         'slot_latency': slot_latency,
@@ -1058,7 +1089,7 @@ def _analyze_transaction_helius(signature: str, helius_api_key: str) -> Dict:
             for transfer in token_transfers:
                 mint = transfer.get('mint')
                 amount = transfer.get('tokenAmount', 0)
-                symbol = transfer.get('tokenSymbol', mint[:8] if mint else 'Unknown')
+                symbol = transfer.get('tokenSymbol', mint if mint else 'Unknown')
 
                 if transfer.get('fromUserAccount') == participant:
                     tokens_out.append({
@@ -1090,11 +1121,11 @@ def _analyze_transaction_helius(signature: str, helius_api_key: str) -> Dict:
 
                 swap = {
                     'trader': participant,
-                    'trader_short': f"{participant[:8]}...{participant[-6:]}",
+                    'trader_short': f"{participant}...{participant[-6:]}",
                     'tokens_sold': [
                         {
                             'mint': mint,
-                            'mint_short': f"{mint[:8]}...{mint[-6:]}" if mint else 'Unknown',
+                            'mint_short': f"{mint}...{mint}" if mint else 'Unknown',
                             'symbol': token_data['symbol'],
                             'amount': token_data['amount']
                         }
@@ -1103,7 +1134,7 @@ def _analyze_transaction_helius(signature: str, helius_api_key: str) -> Dict:
                     'tokens_bought': [
                         {
                             'mint': mint,
-                            'mint_short': f"{mint[:8]}...{mint[-6:]}" if mint else 'Unknown',
+                            'mint_short': f"{mint}...{mint}" if mint else 'Unknown',
                             'symbol': token_data['symbol'],
                             'amount': token_data['amount']
                         }

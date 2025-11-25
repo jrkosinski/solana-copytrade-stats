@@ -9,6 +9,96 @@ from typing import Dict
 import time
 
 
+# Known base currency mint addresses
+# These are the tokens used as "currencies" for trading, not the tokens being traded
+BASE_CURRENCY_MINTS = {
+    'So11111111111111111111111111111111111111112': 'SOL',     # Wrapped SOL (native token)
+    'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v': 'USDC',   # USD Coin
+    'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB': 'USDT',   # Tether USD
+}
+
+# Known base currency symbols
+BASE_CURRENCY_SYMBOLS = {'USDC', 'USDT', 'SOL', 'WSOL', 'DAI', 'BUSD'}
+
+
+def is_base_currency(token_identifier: str) -> bool:
+    """
+    Check if a token is a base currency (SOL or stablecoin) that should not be tracked in positions.
+
+    Base currencies are the currencies you use to trade with (like SOL, USDC, USDT),
+    as opposed to the actual tokens you're trading.
+
+    Args:
+        token_identifier: Token symbol or mint address to check
+
+    Returns:
+        True if the token is a base currency (SOL/stablecoin), False otherwise
+
+    Examples:
+        >>> is_base_currency('SOL')
+        True
+        >>> is_base_currency('USDC')
+        True
+        >>> is_base_currency('So11111111111111111111111111111111111111112')
+        True
+        >>> is_base_currency('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v')
+        True
+        >>> is_base_currency('BONK')
+        False
+    """
+    if not token_identifier:
+        return False
+
+    # Check if it's a known base currency symbol
+    if token_identifier in BASE_CURRENCY_SYMBOLS:
+        return True
+
+    # Check if it's a known base currency mint address
+    if token_identifier in BASE_CURRENCY_MINTS:
+        return True
+
+    return False
+
+
+def is_sol(token_identifier: str) -> bool:
+    """
+    Check if a token is specifically SOL (native or wrapped).
+
+    This is more specific than is_base_currency() - it only checks for SOL,
+    not stablecoins. Useful for exchange rate calculations and SOL-specific logic.
+
+    Args:
+        token_identifier: Token symbol or mint address to check
+
+    Returns:
+        True if the token is SOL/WSOL, False otherwise
+
+    Examples:
+        >>> is_sol('SOL')
+        True
+        >>> is_sol('WSOL')
+        True
+        >>> is_sol('So11111111111111111111111111111111111111112')
+        True
+        >>> is_sol('USDC')
+        False
+        >>> is_sol('BONK')
+        False
+    """
+    if not token_identifier:
+        return False
+
+    # Check for SOL symbols
+    if token_identifier in {'SOL', 'WSOL'}:
+        return True
+
+    # Check for SOL mint address
+    if token_identifier == 'So11111111111111111111111111111111111111112':
+        return True
+
+    return False
+
+
 def get_solscan_url(signature: str) -> str:
     """
     Generate Solscan URL for transaction verification

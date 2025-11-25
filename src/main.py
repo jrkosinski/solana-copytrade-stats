@@ -10,7 +10,8 @@ from tokenchart import TokenChart
 
 def quick_solana_analysis(main_wallet: str, 
                          target_wallet: str = None,
-                         limit: int = 1000):
+                         limit: int = 1000,
+                         use_cache=True):
     """
     Quick analysis function for Solana copy-trading bots
     
@@ -29,7 +30,7 @@ def quick_solana_analysis(main_wallet: str,
         main_wallet=main_wallet,
         target_wallet=target_wallet,
         helius_api_key=helius_api_key,
-        use_cache=True
+        use_cache=use_cache
     )
     
     # Run analysis
@@ -43,7 +44,8 @@ def quick_solana_analysis(main_wallet: str,
 def full_solana_analysis(main_wallet: str,
                          target_wallet: str = None,
                          limit: int = 1000,
-                         save_plots: bool = False):
+                         save_plots: bool = False,
+                         use_cache=True):
     """
     Full analysis function for Solana copy-trading bots
 
@@ -54,7 +56,7 @@ def full_solana_analysis(main_wallet: str,
         save_plots: If True, save plots as PNG files to ./plots/ directory
     """
 
-    analyzer, trades_df = quick_solana_analysis(main_wallet, target_wallet, limit)
+    analyzer, trades_df = quick_solana_analysis(main_wallet, target_wallet, limit, use_cache=use_cache)
 
     # Plot if data available
     if not trades_df.empty or not analyzer.latency_df.empty:
@@ -178,10 +180,11 @@ if (full_analyze):
     #chart.build_chart()
 
 
+#AEfUGoV2qh1A1k3KxuEpZS9o8wSLKXpHpCUkv5mov6Zk
 #########################
-    full_solana_analysis("9EibckQ6Jdfnhb4uAG352KaepYXspRrcNwFjC7xkvRXx", 
-        "4TqoBiBYPKVjd2oENupLKHCLTNTZGEng1LMraoN2e3yZ", 
-        1000)
+    full_solana_analysis("8WEs4FurJNq3zsvUVXKuLCPteGEjYGNq45E4yPpY6no3", 
+        "AEfUGoV2qh1A1k3KxuEpZS9o8wSLKXpHpCUkv5mov6Zk", 
+        500, use_cache=False)
 
     #Confirmed:
     #4CoXh8R1QbbazXrftAx8HDAnUe9uqPJC1TPcZWayTpdi
