@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from IPython.display import display
 import ipywidgets as widgets
+from utils import shorten_signature, format_token_display
 
 # Set style for better looking plots
 plt.style.use('seaborn-v0_8-darkgrid')
@@ -28,6 +29,7 @@ class TradingPlotter:
     trades_df (pandas.DataFrame):
         Required columns:
         - token (str): Token symbol
+        - token_address (str): Token mint address
         - buy_time (datetime): When position was opened
         - sell_time (datetime): When position was closed
         - hold_seconds (float): Duration of position in seconds
@@ -392,28 +394,29 @@ class TradingPlotter:
 
             table_data.append([
                 row['token'][:12],  # Token symbol (truncated)
+                shorten_signature(row['token_address']),  # Token address (shortened)
                 row['buy_time'].strftime('%m/%d %H:%M'),  # Buy Time
                 row['sell_time'].strftime('%m/%d %H:%M'),  # Sell Time
                 hold_str,
-                f"{row['cost']:.3f} {row['cost_token']}",
-                f"{row['proceeds']:.3f} {row['proceeds_token']}",
+                f"{row['cost']:.3f} {format_token_display(row['cost_token'])}",
+                f"{row['proceeds']:.3f} {format_token_display(row['proceeds_token'])}",
                 f"{profit_sign}{row['profit']:.3f}",
                 f"{pnl_sign}{row['pnl_pct']:.1f}%",
                 f"{row['largest_buy_pct']:.0f}%",
                 f"{row['largest_sell_pct']:.0f}%",
-                row['buy_sig'],  # Buy Tx Sig
-                row['sell_sig']  # Sell Tx Sig
+                shorten_signature(row['buy_sig']),  # Buy Tx Sig (shortened)
+                shorten_signature(row['sell_sig'])  # Sell Tx Sig (shortened)
             ])
 
         # Create column headers
-        col_labels = ['Token', 'Buy Time', 'Sell Time', 'Hold', 'Cost', 'Proceeds', 'Profit', 'P/L %', 'Buy %', 'Dump %', 'Buy Tx Sig', 'Sell Tx Sig']
+        col_labels = ['Token', 'Token Addr', 'Buy Time', 'Sell Time', 'Hold', 'Cost', 'Proceeds', 'Profit', 'P/L %', 'Buy %', 'Dump %', 'Buy Tx Sig', 'Sell Tx Sig']
 
         # Create the table
         table = ax.table(cellText=table_data,
                         colLabels=col_labels,
                         cellLoc='left',
                         loc='center',
-                        colWidths=[0.08, 0.07, 0.07, 0.04, 0.10, 0.10, 0.06, 0.05, 0.04, 0.04, 0.12, 0.12])
+                        colWidths=[0.08, 0.08, 0.06, 0.06, 0.04, 0.09, 0.09, 0.05, 0.05, 0.04, 0.04, 0.10, 0.10])
 
         # Style the table
         table.auto_set_font_size(False)

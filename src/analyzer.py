@@ -114,6 +114,9 @@ class SolanaCopyTradingAnalyzer:
             print(f"\n⚡ Fetching target wallet trades... for wallet {self.target_wallet}")
             target_txs = self._fetch_trades(self.target_wallet, limit)
 
+            # Filter target trades to only include tokens that bot also traded
+            target_txs = self._filter_target_trades_by_bot_tokens(target_txs)
+
             print("📊 Calculating copy latency...")
             latency_data = self._calculate_latency(self.bot_txs, target_txs)
 
@@ -470,7 +473,7 @@ class SolanaCopyTradingAnalyzer:
                         #Debug: Show parsed trade for first 5 trades
                         if count <= 5:
                             print(f"\n=== PARSED TRADE #{count} ===")
-                            print(f"Signature: {trade['signature'][:16]}...")
+                            print(f"Signature: {trade['signature']}...")
                             print(f"Token IN:  {trade['token_in_amount']:.8f} {trade['token_in_symbol']}")
                             print(f"Token OUT: {trade['token_out_amount']:.8f} {trade['token_out_symbol']}")
                             print(f"Fee: {trade['fee']:.6f} SOL")
@@ -774,6 +777,25 @@ class SolanaCopyTradingAnalyzer:
             target_by_token_direction[buy_key].append(trade)
             target_by_token_direction[sell_key].append(trade)
 
+        # Debug: Log what's in the lookup
+        print(f"   🔍 DEBUG: Target trades lookup has {len(target_by_token_direction)} keys")
+        buy_keys = [k for k in target_by_token_direction.keys() if k.endswith(':BUY')]
+        sell_keys = [k for k in target_by_token_direction.keys() if k.endswith(':SELL')]
+        print(f"   🔍 DEBUG: BUY keys: {len(buy_keys)}, SELL keys: {len(sell_keys)}")
+        if sell_keys:
+            print(f"   🔍 DEBUG: Sample SELL keys: {sell_keys[:3]}")
+
+        # Debug: Check for the specific token
+        target_token = "3ZWr8meYuUjTP469ABHVuNfPYWb5tqg7Ht6odDMtFbfT"
+        target_buy_key = f"{target_token}:BUY"
+        target_sell_key = f"{target_token}:SELL"
+        if target_buy_key in target_by_token_direction:
+            print(f"   🔍 DEBUG: Found {len(target_by_token_direction[target_buy_key])} target BUY trades for token {target_token[:8]}...")
+        if target_sell_key in target_by_token_direction:
+            print(f"   🔍 DEBUG: Found {len(target_by_token_direction[target_sell_key])} target SELL trades for token {target_token[:8]}...")
+            for i, t in enumerate(target_by_token_direction[target_sell_key]):
+                print(f"      SELL #{i+1}: slot={t['slot']}, timestamp={t['timestamp']}, token_in={t.get('token_in', 'N/A')[:8]}..., token_out={t.get('token_out', 'N/A')[:8]}...")
+
         #Match bot trades to target trades
         for bot_trade in bot_trades:
             token_bought = bot_trade.get('token_out', '')
@@ -782,6 +804,15 @@ class SolanaCopyTradingAnalyzer:
             # Try to match as a buy first
             buy_key = f"{token_bought}:BUY"
             sell_key = f"{token_sold}:SELL"
+
+            # Debug: Check if this is the target token
+            is_target_token_buy = (token_bought == target_token)
+            is_target_token_sell = (token_sold == target_token)
+            if is_target_token_buy or is_target_token_sell:
+                print(f"\n   🎯 DEBUG: Processing bot trade for target token {target_token[:8]}...")
+                print(f"      Bot trade: token_in={token_sold[:8] if token_sold else 'N/A'}..., token_out={token_bought[:8] if token_bought else 'N/A'}...")
+                print(f"      Bot slot: {bot_trade['slot']}, timestamp: {bot_trade['timestamp']}")
+                print(f"      Buy key: {buy_key[:20]}..., Sell key: {sell_key[:20]}...")
 
             matched = False
 
@@ -818,41 +849,152 @@ class SolanaCopyTradingAnalyzer:
                     matched = True
 
             # Try matching as a SELL (bot selling token_in)
-            if not matched and sell_key in target_by_token_direction:
-                # IMPORTANT: Filter by slot, not timestamp, to ensure target came first
-                target_candidates = [
-                    t for t in target_by_token_direction[sell_key]
-                    if t['slot'] < bot_trade['slot']  # Target must be in earlier slot
-                    and (bot_trade['timestamp'] - t['timestamp']) <= MAX_TIME_WINDOW
-                ]
+            if not matched:
+                if sell_key in target_by_token_direction:
+                    # IMPORTANT: Filter by slot, not timestamp, to ensure target came first
+                    print(f"   🔍 DEBUG: Checking SELL for {bot_trade.get('token_in_symbol', 'Unknown')} (key: {sell_key})")
+                    print(f"   🔍 DEBUG: Found {len(target_by_token_direction[sell_key])} target trades with this key")
 
-                if target_candidates:
-                    # Find the closest match (by slot, which is most accurate)
-                    target_trade = max(target_candidates, key=lambda x: x['slot'])
+                    target_candidates = [
+                        t for t in target_by_token_direction[sell_key]
+                        if t['slot'] < bot_trade['slot']  # Target must be in earlier slot
+                        and (bot_trade['timestamp'] - t['timestamp']) <= MAX_TIME_WINDOW
+                    ]
 
-                    slot_latency = bot_trade['slot'] - target_trade['slot']
-                    time_latency = bot_trade['timestamp'] - target_trade['timestamp']
+                    print(f"   🔍 DEBUG: After filtering by slot/time: {len(target_candidates)} candidates")
+                    if not target_candidates and len(target_by_token_direction[sell_key]) > 0:
+                        # Debug why candidates were filtered out
+                        sample_target = target_by_token_direction[sell_key][0]
+                        print(f"   🔍 DEBUG: Sample target slot: {sample_target['slot']}, bot slot: {bot_trade['slot']}")
+                        print(f"   🔍 DEBUG: Time diff: {bot_trade['timestamp'] - sample_target['timestamp']}s (max: {MAX_TIME_WINDOW}s)")
 
-                    print(f"SELL MATCH - SLOT LATENCY for {bot_trade.get('token_in_symbol', 'Unknown')}: {slot_latency} slots ({time_latency}s)")
+                    if target_candidates:
+                        # Find the closest match (by slot, which is most accurate)
+                        target_trade = max(target_candidates, key=lambda x: x['slot'])
 
-                    latency_data.append({
-                        'token': bot_trade.get('token_in_symbol', 'Unknown'),
-                        'direction': 'SELL',
-                        'bot_sig': bot_trade['signature'] + '...',
-                        'target_sig': target_trade['signature'] + '...',
-                        'bot_slot': bot_trade['slot'],
-                        'target_slot': target_trade['slot'],
-                        'slot_latency': slot_latency,
-                        'time_latency': time_latency,
-                        'time_latency_ms': time_latency * 1000
-                    })
-                    matched = True
+                        slot_latency = bot_trade['slot'] - target_trade['slot']
+                        time_latency = bot_trade['timestamp'] - target_trade['timestamp']
+
+                        print(f"SELL MATCH - SLOT LATENCY for {bot_trade.get('token_in_symbol', 'Unknown')}: {slot_latency} slots ({time_latency}s)")
+
+                        latency_data.append({
+                            'token': bot_trade.get('token_in_symbol', 'Unknown'),
+                            'direction': 'SELL',
+                            'bot_sig': bot_trade['signature'] + '...',
+                            'target_sig': target_trade['signature'] + '...',
+                            'bot_slot': bot_trade['slot'],
+                            'target_slot': target_trade['slot'],
+                            'slot_latency': slot_latency,
+                            'time_latency': time_latency,
+                            'time_latency_ms': time_latency * 1000
+                        })
+                        matched = True
+                else:
+                    print(f"   🔍 DEBUG: SELL key '{sell_key}' NOT FOUND in target_by_token_direction")
 
             if not matched:
                 print(f'NO MATCH FOUND for {bot_trade.get("token_out_symbol", "?")} / {bot_trade.get("token_in_symbol", "?")}')
 
         return latency_data
-    
+
+    def _filter_target_trades_by_bot_tokens(self, target_txs: List[Dict]) -> List[Dict]:
+        """
+        Filter target wallet trades to only include tokens that the bot also traded.
+
+        For non-base-currency tokens (not SOL/stablecoins), we only keep trades where
+        the token is also present in the bot's trade history. This helps focus latency
+        analysis on tokens that both wallets actively traded.
+
+        Args:
+            target_txs: List of target wallet trade dictionaries
+
+        Returns:
+            Filtered list of target trades
+        """
+        if not target_txs or self.trades_df.empty:
+            return target_txs
+
+        # Get set of all token mints that appear in bot's trades
+        bot_tokens = set()
+
+        # Debug: Check what columns are available
+        print(f"   🔍 DEBUG: trades_df columns: {list(self.trades_df.columns)}")
+
+        for _, trade in self.trades_df.iterrows():
+            # The matched trades use 'token_address' for the main token
+            if 'token_address' in trade and pd.notna(trade['token_address']):
+                bot_tokens.add(trade['token_address'])
+
+        print(f"   🔍 DEBUG: Found {len(bot_tokens)} unique tokens in bot's portfolio")
+        if len(bot_tokens) > 0:
+            print(f"   🔍 DEBUG: Sample bot tokens: {list(bot_tokens)[:3]}")
+
+        # Debug: Check if the specific token is in bot_tokens
+        target_token = "3ZWr8meYuUjTP469ABHVuNfPYWb5tqg7Ht6odDMtFbfT"
+        if target_token in bot_tokens:
+            print(f"   ✅ DEBUG: Target token {target_token[:8]}... IS in bot's portfolio")
+        else:
+            print(f"   ❌ DEBUG: Target token {target_token[:8]}... is NOT in bot's portfolio")
+
+        original_count = len(target_txs)
+
+        # Filter target_txs: keep only trades where:
+        # 1. Either token involved is a base currency (SOL/stablecoin), OR
+        # 2. The non-base-currency token is in bot_tokens
+        filtered_target_txs = []
+        for tx in target_txs:
+            token_in = tx.get('token_in', '')
+            token_out = tx.get('token_out', '')
+            token_in_symbol = tx.get('token_in_symbol', '')
+            token_out_symbol = tx.get('token_out_symbol', '')
+
+            # Check if either token is a base currency
+            token_in_is_base = is_base_currency(token_in) or is_base_currency(token_in_symbol)
+            token_out_is_base = is_base_currency(token_out) or is_base_currency(token_out_symbol)
+
+            # If both tokens are base currencies, keep it (e.g., SOL/USDC swap)
+            if token_in_is_base and token_out_is_base:
+                filtered_target_txs.append(tx)
+                continue
+
+            # Identify the non-base-currency token (the actual traded token)
+            traded_token = None
+            trade_type = None
+            if token_in_is_base and not token_out_is_base:
+                traded_token = token_out  # Buying token_out with base currency
+                trade_type = "BUY"
+            elif token_out_is_base and not token_in_is_base:
+                traded_token = token_in  # Selling token_in for base currency
+                trade_type = "SELL"
+
+            # If we identified a traded token, only keep if bot also traded it
+            if traded_token:
+                # Debug: Check if this is the target token
+                is_target = (traded_token == target_token)
+                if is_target:
+                    print(f"   🎯 DEBUG: Found target token trade - {trade_type}: {token_in_symbol} → {token_out_symbol}")
+                    print(f"      Checking if {traded_token[:8]}... is in bot_tokens: {traded_token in bot_tokens}")
+
+                if traded_token in bot_tokens:
+                    filtered_target_txs.append(tx)
+                    if is_target:
+                        print(f"      ✅ KEPT this trade")
+                else:
+                    # Debug: Log filtered out trades
+                    print(f"   ⏭️  FILTERED OUT {trade_type}: {token_in_symbol} → {token_out_symbol} (token {traded_token[:8]}... not in bot portfolio)")
+            else:
+                # Neither token is a base currency - this is unusual, but keep it to be safe
+                filtered_target_txs.append(tx)
+
+        filtered_count = len(filtered_target_txs)
+        removed_count = original_count - filtered_count
+
+        if removed_count > 0:
+            print(f"   🔍 Filtered target trades: removed {removed_count} trades for tokens not in bot's portfolio")
+            print(f"   📊 Target trades remaining: {filtered_count} / {original_count}")
+
+        return filtered_target_txs
+
     def _filter_outliers_from_trades(self):
         """
         Filter extreme outliers from trades based on P/L percentage thresholds

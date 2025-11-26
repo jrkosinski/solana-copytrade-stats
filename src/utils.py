@@ -99,6 +99,74 @@ def is_sol(token_identifier: str) -> bool:
     return False
 
 
+def shorten_signature(signature: str, head_chars: int = 5, tail_chars: int = 5) -> str:
+    """
+    Shorten a transaction signature for display purposes
+
+    Args:
+        signature: Full transaction signature hash
+        head_chars: Number of characters to show at the beginning (default: 5)
+        tail_chars: Number of characters to show at the end (default: 5)
+
+    Returns:
+        Shortened signature in format "XXXXX...XXXXX"
+
+    Examples:
+        >>> shorten_signature("5a1zqmGWmdAC4qYtoD3RQwFtJR7EwPXxpkYZQRRfeMVY")
+        '5a1zq...feMVY'
+        >>> shorten_signature("5a1zqmGWmdAC4qYtoD3RQwFtJR7EwPXxpkYZQRRfeMVY", 8, 8)
+        '5a1zqmGW...QRRfeMVY'
+    """
+    if not signature or len(signature) <= (head_chars + tail_chars + 3):
+        return signature
+
+    return f"{signature[:head_chars]}...{signature[-tail_chars:]}"
+
+
+def format_token_display(token_identifier: str, shorten: bool = True) -> str:
+    """
+    Format a token identifier for clean display in plots
+
+    For well-known tokens (SOL, USDC, etc.), returns the symbol.
+    For unknown tokens, returns the shortened or full address based on shorten parameter.
+
+    Args:
+        token_identifier: Token symbol or mint address
+        shorten: If True and token is not recognized, shorten the address
+
+    Returns:
+        Clean display name for the token
+
+    Examples:
+        >>> format_token_display('So11111111111111111111111111111111111111112')
+        'SOL'
+        >>> format_token_display('So11111111111111111111111111111111111111112', shorten=True)
+        'SOL'
+        >>> format_token_display('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v')
+        'USDC'
+        >>> format_token_display('3ZWr8meYuUjTP469ABHVuNfPYWb5tqg7Ht6odDMtFbfT', shorten=True)
+        '3ZWr8...tFbfT'
+        >>> format_token_display('BONK')
+        'BONK'
+    """
+    if not token_identifier:
+        return 'Unknown'
+
+    # Check if it's a known base currency mint address
+    if token_identifier in BASE_CURRENCY_MINTS:
+        return BASE_CURRENCY_MINTS[token_identifier]
+
+    # If it's already a symbol (short string), return as-is
+    if len(token_identifier) < 32:
+        return token_identifier
+
+    # It's a long address - shorten if requested
+    if shorten:
+        return shorten_signature(token_identifier)
+
+    return token_identifier
+
+
 def get_solscan_url(signature: str) -> str:
     """
     Generate Solscan URL for transaction verification
