@@ -712,7 +712,9 @@ class SolanaCopyTradingAnalyzer:
                         'num_buys': stats['num_buys'],
                         'largest_buy_pct': stats['largest_buy_pct'],
                         'num_sells': stats['num_sells'],
-                        'largest_sell_pct': stats['largest_sell_pct']
+                        'largest_sell_pct': stats['largest_sell_pct'],
+                        'position_size': buy['cost'],  # Position size in base currency (cost of entry)
+                        'position_size_currency': buy.get('cost_token', 'Unknown')
                     }
 
                     #Debug: Flag trades with suspiciously high PnL

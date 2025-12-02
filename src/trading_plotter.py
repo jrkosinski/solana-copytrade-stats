@@ -129,13 +129,13 @@ class TradingPlotter:
         """
         # Create figure with GridSpec for flexible layout
         if has_trades and has_latency:
-            fig = plt.figure(figsize=(figsize[0], figsize[1] * 0.75))
-            gs = fig.add_gridspec(2, 3, hspace=0.4, wspace=0.3)
-            axes = [fig.add_subplot(gs[i, j]) for i in range(2) for j in range(3)]
+            fig = plt.figure(figsize=(figsize[0], figsize[1] * 0.85))
+            gs = fig.add_gridspec(3, 3, hspace=0.4, wspace=0.3)
+            axes = [fig.add_subplot(gs[i, j]) for i in range(3) for j in range(3)]
         elif has_trades:
-            fig = plt.figure(figsize=(figsize[0], figsize[1] * 0.6))
-            gs = fig.add_gridspec(2, 3, hspace=0.4, wspace=0.3)
-            axes = [fig.add_subplot(gs[i, j]) for i in range(2) for j in range(3)]
+            fig = plt.figure(figsize=(figsize[0], figsize[1] * 0.75))
+            gs = fig.add_gridspec(3, 3, hspace=0.4, wspace=0.3)
+            axes = [fig.add_subplot(gs[i, j]) for i in range(3) for j in range(3)]
         else:
             fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 
@@ -189,6 +189,7 @@ class TradingPlotter:
             plot_idx += 1
 
             # 5. Top Tokens
+            #TODO: shorten token symbol in this one
             ax = axes[plot_idx]
             token_perf = trades_df.groupby('token')['pnl_pct'].mean().sort_values().tail(10)
             colors = ['red' if x < 0 else 'green' for x in token_perf]
@@ -197,8 +198,49 @@ class TradingPlotter:
             ax.set_xlabel('Average P/L (%)')
             plot_idx += 1
 
+            # 6. Position Size Distribution
+            if 'position_size' in trades_df.columns:
+                ax = axes[plot_idx]
+                trades_df['position_size'].hist(bins=30, ax=ax, color='orange', edgecolor='black', alpha=0.7)
+                mean_size = trades_df['position_size'].mean()
+                median_size = trades_df['position_size'].median()
+                ax.axvline(mean_size, color='red', linestyle='--', linewidth=2, label=f'Mean: {mean_size:.3f}')
+                ax.axvline(median_size, color='blue', linestyle='--', linewidth=2, label=f'Median: {median_size:.3f}')
+
+                # Get the currency (assuming all trades use same currency, or use most common)
+                currency = trades_df['position_size_currency'].mode()[0] if 'position_size_currency' in trades_df.columns else 'SOL'
+                ax.set_title(f'Position Size Distribution ({currency})')
+                ax.set_xlabel(f'Position Size ({currency})')
+                ax.set_ylabel('Number of Trades')
+                ax.legend()
+                plot_idx += 1
+
+            # 7. Position Size vs P/L
+            if 'position_size' in trades_df.columns:
+                ax = axes[plot_idx]
+                scatter = ax.scatter(trades_df['position_size'], trades_df['pnl_pct'],
+                                   c=trades_df['pnl_pct'], cmap='RdYlGn',
+                                   alpha=0.6, edgecolors='black', linewidth=0.5)
+                ax.axhline(0, color='black', linestyle='-', alpha=0.3)
+                currency = trades_df['position_size_currency'].mode()[0] if 'position_size_currency' in trades_df.columns else 'SOL'
+                ax.set_title('Position Size vs P/L')
+                ax.set_xlabel(f'Position Size ({currency})')
+                ax.set_ylabel('P/L (%)')
+                plt.colorbar(scatter, ax=ax, label='P/L %')
+                plot_idx += 1
+
+            # 8. Average Position Size by Token (Top 10)
+            if 'position_size' in trades_df.columns:
+                ax = axes[plot_idx]
+                token_pos_size = trades_df.groupby('token')['position_size'].mean().sort_values(ascending=False).head(10)
+                token_pos_size.plot(kind='barh', ax=ax, color='teal')
+                currency = trades_df['position_size_currency'].mode()[0] if 'position_size_currency' in trades_df.columns else 'SOL'
+                ax.set_title(f'Top 10 Tokens by Avg Position Size')
+                ax.set_xlabel(f'Average Position Size ({currency})')
+                plot_idx += 1
+
         if has_latency:
-            # 6. Latency Distribution
+            # 9. Latency Distribution
             ax = axes[plot_idx]
             latency_df['slot_latency'].hist(bins=30, ax=ax,
                                                  color='purple', edgecolor='black', alpha=0.7)
@@ -392,12 +434,18 @@ class TradingPlotter:
             profit_sign = "+" if row['profit'] >= 0 else ""
             pnl_sign = "+" if row['pnl_pct'] >= 0 else ""
 
+            # Add position size if available
+            position_size_str = ""
+            if 'position_size' in row and 'position_size_currency' in row:
+                position_size_str = f"{row['position_size']:.3f} {format_token_display(row['position_size_currency'])}"
+
             table_data.append([
                 row['token'][:12],  # Token symbol (truncated)
                 shorten_signature(row['token_address']),  # Token address (shortened)
                 row['buy_time'].strftime('%m/%d %H:%M'),  # Buy Time
                 row['sell_time'].strftime('%m/%d %H:%M'),  # Sell Time
                 hold_str,
+                position_size_str,  # Position Size
                 f"{row['cost']:.3f} {format_token_display(row['cost_token'])}",
                 f"{row['proceeds']:.3f} {format_token_display(row['proceeds_token'])}",
                 f"{profit_sign}{row['profit']:.3f}",
@@ -409,14 +457,14 @@ class TradingPlotter:
             ])
 
         # Create column headers
-        col_labels = ['Token', 'Token Addr', 'Buy Time', 'Sell Time', 'Hold', 'Cost', 'Proceeds', 'Profit', 'P/L %', 'Buy %', 'Dump %', 'Buy Tx Sig', 'Sell Tx Sig']
+        col_labels = ['Token', 'Token Addr', 'Buy Time', 'Sell Time', 'Hold', 'Position Size', 'Cost', 'Proceeds', 'Profit', 'P/L %', 'Buy %', 'Dump %', 'Buy Tx Sig', 'Sell Tx Sig']
 
         # Create the table
         table = ax.table(cellText=table_data,
                         colLabels=col_labels,
                         cellLoc='left',
                         loc='center',
-                        colWidths=[0.08, 0.08, 0.06, 0.06, 0.04, 0.09, 0.09, 0.05, 0.05, 0.04, 0.04, 0.10, 0.10])
+                        colWidths=[0.07, 0.07, 0.06, 0.06, 0.04, 0.07, 0.07, 0.07, 0.05, 0.05, 0.04, 0.04, 0.09, 0.09])
 
         # Style the table
         table.auto_set_font_size(False)
@@ -431,7 +479,8 @@ class TradingPlotter:
 
         # Color code profit/loss rows
         for i, row_data in enumerate(table_data):
-            profit_val = float(row_data[7].replace('%', '').replace('+', ''))
+            # P/L % is now at index 9 (was 7 before adding Position Size column)
+            profit_val = float(row_data[9].replace('%', '').replace('+', ''))
             color = '#E8F5E9' if profit_val >= 0 else '#FFEBEE'
 
             for j in range(len(col_labels)):
