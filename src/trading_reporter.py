@@ -289,3 +289,24 @@ class TradingReporter:
             'max_drawup': max_drawup,
             'max_drawup_duration': max_du_duration
         }
+
+    def _save_report_to_file(self, report_lines: list):
+        """
+        Save the report to a file in the wallet's plots subdirectory
+
+        Args:
+            report_lines: List of strings containing the report lines
+        """
+        # Create plots directory structure if it doesn't exist
+        plots_dir = './plots'
+        wallet_dir = os.path.join(plots_dir, self.main_wallet)
+        os.makedirs(wallet_dir, exist_ok=True)
+
+        # Generate filename
+        filename = os.path.join(wallet_dir, 'stats.txt')
+
+        # Write report to file
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write('\n'.join(report_lines))
+
+        print(f"\n💾 Report saved to {filename}")
