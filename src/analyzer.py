@@ -161,14 +161,17 @@ class SolanaCopyTradingAnalyzer:
 
         return self.trades_df
     
-    def generate_report(self):
+    def generate_report(self, save_to_file=False):
         """
         Generate comprehensive analysis report with statistics and metrics
+
+        Args:
+            save_to_file: If True, save report to ./plots/{wallet_address}/stats.txt
 
         Delegates to TradingReporter class for report generation
         """
         reporter = TradingReporter(self.main_wallet, self.target_wallet)
-        reporter.generate_report(self.trades_df, self.latency_df, len(self.bot_txs))
+        reporter.generate_report(self.trades_df, self.latency_df, len(self.bot_txs), save_to_file)
     
     def plot_results(self, figsize=(20, 14), save_plots=False):
         """
