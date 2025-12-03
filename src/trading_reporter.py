@@ -5,6 +5,7 @@ This module provides report generation functionality for analyzing trading perfo
 including comprehensive statistics, risk metrics, and behavioral analysis.
 """
 
+import os
 import pandas as pd
 import numpy as np
 from typing import Dict
@@ -56,7 +57,7 @@ class TradingReporter:
         self.target_wallet = target_wallet
 
     def generate_report(self, trades_df: pd.DataFrame, latency_df: pd.DataFrame = None,
-                       bot_txs_count: int = 0):
+                       bot_txs_count: int = 0, save_to_file: bool = False):
         """
         Generate comprehensive analysis report with statistics and metrics
 
@@ -64,6 +65,7 @@ class TradingReporter:
             trades_df: DataFrame containing trade data (see class docstring for format)
             latency_df: Optional DataFrame containing latency data
             bot_txs_count: Number of raw transactions processed
+            save_to_file: If True, save report to ./plots/{wallet_address}/stats.txt
 
         Prints detailed statistics including:
         - Overall trade counts and date ranges
@@ -75,100 +77,112 @@ class TradingReporter:
         - Copy latency statistics (if target wallet provided)
         """
 
-        print("\n" + "=" * 80)
-        print("📊 SOLANA COPY-TRADING BOT PERFORMANCE REPORT")
-        print("=" * 80)
+        # Build report as a list of lines
+        report_lines = []
+
+        def print_and_capture(text=""):
+            """Print to console and capture to report"""
+            print(text)
+            report_lines.append(text)
+
+        print_and_capture("\n" + "=" * 80)
+        print_and_capture("📊 SOLANA COPY-TRADING BOT PERFORMANCE REPORT")
+        print_and_capture("=" * 80)
 
         if not trades_df.empty:
 
             if not trades_df.empty:
-                print("\n📈 Overall Statistics:")
-                print(f"   Total Matched Trades: {len(trades_df)}")
-                print(f"   Trades in Analysis: {len(trades_df)}")
-                print(f"   Unique Tokens Traded: {trades_df['token'].nunique()}")
-                print(f"   Date Range: {trades_df['buy_time'].min()} to {trades_df['sell_time'].max()}")
+                print_and_capture("\n📈 Overall Statistics:")
+                print_and_capture(f"   Total Matched Trades: {len(trades_df)}")
+                print_and_capture(f"   Trades in Analysis: {len(trades_df)}")
+                print_and_capture(f"   Unique Tokens Traded: {trades_df['token'].nunique()}")
+                print_and_capture(f"   Date Range: {trades_df['buy_time'].min()} to {trades_df['sell_time'].max()}")
 
-                print("\n💰 Profit/Loss Statistics (Filtered):")
-                print(f"   Average P/L per trade: {trades_df['pnl_pct'].mean():.2f}%")
-                print(f"   Median P/L per trade: {trades_df['pnl_pct'].median():.2f}%")
-                print(f"   Best Trade: {trades_df['pnl_pct'].max():.2f}%")
-                print(f"   Worst Trade: {trades_df['pnl_pct'].min():.2f}%")
-                print(f"   Win Rate: {(trades_df['pnl_pct'] > 0).mean() * 100:.1f}%")
+                print_and_capture("\n💰 Profit/Loss Statistics (Filtered):")
+                print_and_capture(f"   Average P/L per trade: {trades_df['pnl_pct'].mean():.2f}%")
+                print_and_capture(f"   Median P/L per trade: {trades_df['pnl_pct'].median():.2f}%")
+                print_and_capture(f"   Best Trade: {trades_df['pnl_pct'].max():.2f}%")
+                print_and_capture(f"   Worst Trade: {trades_df['pnl_pct'].min():.2f}%")
+                print_and_capture(f"   Win Rate: {(trades_df['pnl_pct'] > 0).mean() * 100:.1f}%")
 
                 # Calculate and display risk metrics
                 risk_metrics = self._calculate_risk_metrics(trades_df)
-                print("\n📊 Risk Metrics:")
-                print(f"   Sharpe Ratio: {risk_metrics['sharpe_ratio']:.2f}")
-                print(f"   Max Drawdown: {risk_metrics['max_drawdown']:.2f}%")
-                print(f"   Max Drawdown Duration: {risk_metrics['max_drawdown_duration']:.2f} days")
-                print(f"   Max Draw-up: {risk_metrics['max_drawup']:.2f}%")
-                print(f"   Max Draw-up Duration: {risk_metrics['max_drawup_duration']:.2f} days")
+                print_and_capture("\n📊 Risk Metrics:")
+                print_and_capture(f"   Sharpe Ratio: {risk_metrics['sharpe_ratio']:.2f}")
+                print_and_capture(f"   Max Drawdown: {risk_metrics['max_drawdown']:.2f}%")
+                print_and_capture(f"   Max Drawdown Duration: {risk_metrics['max_drawdown_duration']:.2f} days")
+                print_and_capture(f"   Max Draw-up: {risk_metrics['max_drawup']:.2f}%")
+                print_and_capture(f"   Max Draw-up Duration: {risk_metrics['max_drawup_duration']:.2f} days")
 
-                print("\n⏰ Hold Time Statistics:")
-                print(f"   Average Hold Time: {trades_df['hold_days'].mean():.2f} days")
-                print(f"   Median Hold Time: {trades_df['hold_days'].median():.2f} days")
-                print(f"   Shortest Hold: {trades_df['hold_seconds'].min() / 60:.1f} minutes")
-                print(f"   Longest Hold: {trades_df['hold_days'].max():.1f} days")
+                print_and_capture("\n⏰ Hold Time Statistics:")
+                print_and_capture(f"   Average Hold Time: {trades_df['hold_days'].mean():.2f} days")
+                print_and_capture(f"   Median Hold Time: {trades_df['hold_days'].median():.2f} days")
+                print_and_capture(f"   Shortest Hold: {trades_df['hold_seconds'].min() / 60:.1f} minutes")
+                print_and_capture(f"   Longest Hold: {trades_df['hold_days'].max():.1f} days")
 
-                print("\n📥 Entry Behavior:")
-                print(f"   Average Largest Buy: {trades_df['largest_buy_pct'].mean():.1f}% of position")
-                print(f"   Median Largest Buy: {trades_df['largest_buy_pct'].median():.1f}% of position")
-                print(f"   Average Buys per Token: {trades_df['num_buys'].mean():.1f}")
+                print_and_capture("\n📥 Entry Behavior:")
+                print_and_capture(f"   Average Largest Buy: {trades_df['largest_buy_pct'].mean():.1f}% of position")
+                print_and_capture(f"   Median Largest Buy: {trades_df['largest_buy_pct'].median():.1f}% of position")
+                print_and_capture(f"   Average Buys per Token: {trades_df['num_buys'].mean():.1f}")
 
                 # Categorize entry behavior
                 instant_buys = (trades_df['largest_buy_pct'] == 100).sum()
                 partial_entries = ((trades_df['largest_buy_pct'] >= 50) & (trades_df['largest_buy_pct'] < 100)).sum()
                 gradual_entries = (trades_df['largest_buy_pct'] < 50).sum()
-                print(f"   Instant Buy-ins (100%): {instant_buys} ({instant_buys/len(trades_df)*100:.1f}%)")
-                print(f"   Partial Entries (50-99%): {partial_entries} ({partial_entries/len(trades_df)*100:.1f}%)")
-                print(f"   Gradual Entries (<50%): {gradual_entries} ({gradual_entries/len(trades_df)*100:.1f}%)")
+                print_and_capture(f"   Instant Buy-ins (100%): {instant_buys} ({instant_buys/len(trades_df)*100:.1f}%)")
+                print_and_capture(f"   Partial Entries (50-99%): {partial_entries} ({partial_entries/len(trades_df)*100:.1f}%)")
+                print_and_capture(f"   Gradual Entries (<50%): {gradual_entries} ({gradual_entries/len(trades_df)*100:.1f}%)")
 
-                print("\n🔄 Exit Behavior:")
-                print(f"   Average Largest Sell: {trades_df['largest_sell_pct'].mean():.1f}% of position")
-                print(f"   Median Largest Sell: {trades_df['largest_sell_pct'].median():.1f}% of position")
-                print(f"   Average Sells per Token: {trades_df['num_sells'].mean():.1f}")
+                print_and_capture("\n🔄 Exit Behavior:")
+                print_and_capture(f"   Average Largest Sell: {trades_df['largest_sell_pct'].mean():.1f}% of position")
+                print_and_capture(f"   Median Largest Sell: {trades_df['largest_sell_pct'].median():.1f}% of position")
+                print_and_capture(f"   Average Sells per Token: {trades_df['num_sells'].mean():.1f}")
 
                 # Categorize exit behavior
                 instant_dumps = (trades_df['largest_sell_pct'] == 100).sum()
                 partial_exits = ((trades_df['largest_sell_pct'] >= 50) & (trades_df['largest_sell_pct'] < 100)).sum()
                 gradual_exits = (trades_df['largest_sell_pct'] < 50).sum()
-                print(f"   Instant Dumps (100%): {instant_dumps} ({instant_dumps/len(trades_df)*100:.1f}%)")
-                print(f"   Partial Exits (50-99%): {partial_exits} ({partial_exits/len(trades_df)*100:.1f}%)")
-                print(f"   Gradual Exits (<50%): {gradual_exits} ({gradual_exits/len(trades_df)*100:.1f}%)")
+                print_and_capture(f"   Instant Dumps (100%): {instant_dumps} ({instant_dumps/len(trades_df)*100:.1f}%)")
+                print_and_capture(f"   Partial Exits (50-99%): {partial_exits} ({partial_exits/len(trades_df)*100:.1f}%)")
+                print_and_capture(f"   Gradual Exits (<50%): {gradual_exits} ({gradual_exits/len(trades_df)*100:.1f}%)")
         else:
-            print("\n⚠️ No matched trades found")
-            print("   Raw transaction count:", bot_txs_count)
+            print_and_capture("\n⚠️ No matched trades found")
+            print_and_capture("   Raw transaction count:", bot_txs_count)
 
         if latency_df is not None and not latency_df.empty:
-            print("\n⚡ Copy Latency Statistics:")
-            print(f"   Total Matched Swaps: {len(latency_df)}")
+            print_and_capture("\n⚡ Copy Latency Statistics:")
+            print_and_capture(f"   Total Matched Swaps: {len(latency_df)}")
 
             # Count by direction
             buys = len(latency_df[latency_df['direction'] == 'BUY'])
             sells = len(latency_df[latency_df['direction'] == 'SELL'])
-            print(f"   Matched Buys: {buys}")
-            print(f"   Matched Sells: {sells}")
+            print_and_capture(f"   Matched Buys: {buys}")
+            print_and_capture(f"   Matched Sells: {sells}")
 
-            print(f"\n   Average Slot Latency: {latency_df['slot_latency'].mean():.1f} slots")
-            print(f"   Median Slot Latency: {latency_df['slot_latency'].median():.0f} slots")
-            print(f"   Average Time Latency: {latency_df['time_latency'].mean():.1f} seconds")
-            print(f"   Fastest Copy: {latency_df['slot_latency'].min()} slots")
-            print(f"   Slowest Copy: {latency_df['slot_latency'].max()} slots")
+            print_and_capture(f"\n   Average Slot Latency: {latency_df['slot_latency'].mean():.1f} slots")
+            print_and_capture(f"   Median Slot Latency: {latency_df['slot_latency'].median():.0f} slots")
+            print_and_capture(f"   Average Time Latency: {latency_df['time_latency'].mean():.1f} seconds")
+            print_and_capture(f"   Fastest Copy: {latency_df['slot_latency'].min()} slots")
+            print_and_capture(f"   Slowest Copy: {latency_df['slot_latency'].max()} slots")
 
             # Estimate latency in milliseconds (Solana slot time ~400ms)
             avg_ms = latency_df['slot_latency'].mean() * 400
-            print(f"   Estimated Avg Latency: ~{avg_ms:.0f}ms")
+            print_and_capture(f"   Estimated Avg Latency: ~{avg_ms:.0f}ms")
 
             # Detailed breakdown of matched trades
-            print("\n📋 Matched Trade Details:")
+            print_and_capture("\n📋 Matched Trade Details:")
             for idx, row in latency_df.iterrows():
                 direction_emoji = "🟢" if row['direction'] == 'BUY' else "🔴"
-                print(f"\n   {direction_emoji} {row['direction']} {row['token']}")
-                print(f"      Bot Signature:    {row['bot_sig']}")
-                print(f"      Target Signature: {row['target_sig']}")
-                print(f"      Slot Latency:     {row['slot_latency']} slots ({row['time_latency']:.1f}s)")
-                print(f"      Bot Slot:         {row['bot_slot']}")
-                print(f"      Target Slot:      {row['target_slot']}")
+                print_and_capture(f"\n   {direction_emoji} {row['direction']} {row['token']}")
+                print_and_capture(f"      Bot Signature:    {row['bot_sig']}")
+                print_and_capture(f"      Target Signature: {row['target_sig']}")
+                print_and_capture(f"      Slot Latency:     {row['slot_latency']} slots ({row['time_latency']:.1f}s)")
+                print_and_capture(f"      Bot Slot:         {row['bot_slot']}")
+                print_and_capture(f"      Target Slot:      {row['target_slot']}")
+
+        # Save report to file if requested
+        if save_to_file:
+            self._save_report_to_file(report_lines)
 
     def _calculate_risk_metrics(self, trades_df: pd.DataFrame) -> Dict[str, float]:
         """

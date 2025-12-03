@@ -93,9 +93,10 @@ class TradingPlotter:
             self._plot_graphs(trades_df, latency_df, has_trades, has_latency, figsize, save_plots)
 
         # Create the table tab
-        with table_output:
+        #with table_output:
             if has_trades:
-                self._plot_table(trades_df, save_plots)
+                print('Has Trades')
+                #self._plot_table(trades_df, save_plots)
             else:
                 print("No trade data available for table")
 
@@ -189,10 +190,11 @@ class TradingPlotter:
             plot_idx += 1
 
             # 5. Top Tokens
-            #TODO: shorten token symbol in this one
             ax = axes[plot_idx]
             token_perf = trades_df.groupby('token')['pnl_pct'].mean().sort_values().tail(10)
             colors = ['red' if x < 0 else 'green' for x in token_perf]
+            # Shorten token addresses for display
+            token_perf.index = [shorten_signature(token) for token in token_perf.index]
             token_perf.plot(kind='barh', ax=ax, color=colors)
             ax.set_title('Top 10 Tokens by Avg P/L')
             ax.set_xlabel('Average P/L (%)')
@@ -209,7 +211,7 @@ class TradingPlotter:
 
                 # Get the currency (assuming all trades use same currency, or use most common)
                 currency = trades_df['position_size_currency'].mode()[0] if 'position_size_currency' in trades_df.columns else 'SOL'
-                ax.set_title(f'Position Size Distribution ({currency})')
+                ax.set_title(f'Position Size Distribution ({shorten_signature(currency)})')
                 ax.set_xlabel(f'Position Size ({currency})')
                 ax.set_ylabel('Number of Trades')
                 ax.legend()
@@ -224,7 +226,7 @@ class TradingPlotter:
                 ax.axhline(0, color='black', linestyle='-', alpha=0.3)
                 currency = trades_df['position_size_currency'].mode()[0] if 'position_size_currency' in trades_df.columns else 'SOL'
                 ax.set_title('Position Size vs P/L')
-                ax.set_xlabel(f'Position Size ({currency})')
+                ax.set_xlabel(f'Position Size ({shorten_signature(currency)})')
                 ax.set_ylabel('P/L (%)')
                 plt.colorbar(scatter, ax=ax, label='P/L %')
                 plot_idx += 1
@@ -233,10 +235,12 @@ class TradingPlotter:
             if 'position_size' in trades_df.columns:
                 ax = axes[plot_idx]
                 token_pos_size = trades_df.groupby('token')['position_size'].mean().sort_values(ascending=False).head(10)
+                # Shorten token addresses for display
+                token_pos_size.index = [shorten_signature(token) for token in token_pos_size.index]
                 token_pos_size.plot(kind='barh', ax=ax, color='teal')
                 currency = trades_df['position_size_currency'].mode()[0] if 'position_size_currency' in trades_df.columns else 'SOL'
                 ax.set_title(f'Top 10 Tokens by Avg Position Size')
-                ax.set_xlabel(f'Average Position Size ({currency})')
+                ax.set_xlabel(f'Average Position Size ({shorten_signature(currency)})')
                 plot_idx += 1
 
         if has_latency:

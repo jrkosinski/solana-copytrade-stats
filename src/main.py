@@ -72,7 +72,7 @@ def full_solana_analysis(main_wallet: str,
 
 def quick_analyses(main_wallets): 
     for wallet in main_wallets: 
-        quick_solana_analysis(wallet, None, 1000)
+        quick_solana_analysis(wallet, None, 3000, use_cache=True)
 
 def full_analyses(main_wallets):
     for wallet in main_wallets:
@@ -182,9 +182,9 @@ if (full_analyze):
 
 #AEfUGoV2qh1A1k3KxuEpZS9o8wSLKXpHpCUkv5mov6Zk
 #########################
-    full_solana_analysis("AEfUGoV2qh1A1k3KxuEpZS9o8wSLKXpHpCUkv5mov6Zk", #"8WEs4FurJNq3zsvUVXKuLCPteGEjYGNq45E4yPpY6no3", 
-        None, #"AEfUGoV2qh1A1k3KxuEpZS9o8wSLKXpHpCUkv5mov6Zk", 
-        5000, use_cache=False)
+    #full_solana_analysis("CyaE1VxvBrahnPWkqm5VsdCvyS2QmNht2UFrKJHga54o", #"8WEs4FurJNq3zsvUVXKuLCPteGEjYGNq45E4yPpY6no3", 
+    #    None, #"AEfUGoV2qh1A1k3KxuEpZS9o8wSLKXpHpCUkv5mov6Zk", 
+    #    5000, use_cache=False)
 
     #Confirmed:
     #4CoXh8R1QbbazXrftAx8HDAnUe9uqPJC1TPcZWayTpdi
@@ -197,19 +197,41 @@ if (full_analyze):
     #CU3ErWQvUQhxiLE8Kvo6NsYujTudYLUAJ1qogVkMJQ1r
     #TTdzckfwm7Y46gUULe6zmwC9z5pV1o5qaKkvAbAvXvY  ?
 
-    #full_analyses([
-    #    "2fg5QD1eD7rzNNCsvnhmXFm5hqNgwTTG8p7kQ6f3rx6f",
-    #    "JDuqZT2f8nzNWMSLYo8LWfYDV34Zgj7zYGqp1y9SPXai",
-    #    "CFS2db3cag9A3G8P5NHT3sbFTcvDeXW4WXgWn6tQcs74",
-    #    "7CXbEAX4GTBur2te85FyZkWitk97NX5adJN9cevWJfg2",
-    #      "5a1zqmGWmdAC4qYtoD3RQwFtJR7EwPXxpkYZQRRfeMVY",
-    #      "AEfUGoV2qh1A1k3KxuEpZS9o8wSLKXpHpCUkv5mov6Zk",
-    #      "4MLv9wmF5RFhp2rpNJ5ZzrNZwE4VNKrMYv7FoEij5vL4",
-    #      "6LEUnbZtcSoekRUTiLXbhtLgLcjQEUSu4Y29n8tbCBqi",
-    #      "EZk34zBM6cCCzzWARz5uG7P592bpjB2cEfXLvSNYvNNu",
-    #      "3wNnJCa1Z37uD2tMYkHPMi3MHmcQdYJ4wpvyk4xb6Qck",
-    #      "CZD26AV4yxX2x7Z9jDsSEQiCLcTpkZejAbjEmCD6ntEk"
-    #])
+
+    full_analyses([
+        "2fg5QD1eD7rzNNCsvnhmXFm5hqNgwTTG8p7kQ6f3rx6f",
+        "JDuqZT2f8nzNWMSLYo8LWfYDV34Zgj7zYGqp1y9SPXai",
+        "CFS2db3cag9A3G8P5NHT3sbFTcvDeXW4WXgWn6tQcs74",
+        "7CXbEAX4GTBur2te85FyZkWitk97NX5adJN9cevWJfg2",
+        "5a1zqmGWmdAC4qYtoD3RQwFtJR7EwPXxpkYZQRRfeMVY",
+        "AEfUGoV2qh1A1k3KxuEpZS9o8wSLKXpHpCUkv5mov6Zk",
+        "4MLv9wmF5RFhp2rpNJ5ZzrNZwE4VNKrMYv7FoEij5vL4",
+        "6LEUnbZtcSoekRUTiLXbhtLgLcjQEUSu4Y29n8tbCBqi",
+        "EZk34zBM6cCCzzWARz5uG7P592bpjB2cEfXLvSNYvNNu",
+        "3wNnJCa1Z37uD2tMYkHPMi3MHmcQdYJ4wpvyk4xb6Qck",
+        "CZD26AV4yxX2x7Z9jDsSEQiCLcTpkZejAbjEmCD6ntEk",
+
+        "Gg5xSmrpDGrhFJKQ2V4psfL78AV4EPzK5vwwriYtcEzs",
+        "ADENywZuaxmt9Ar8Hju9z4zMYktjTLTVecDrDENrTsKF",
+        "4CoXh8R1QbbazXrftAx8HDAnUe9uqPJC1TPcZWayTpdi",
+        "4TqoBiBYPKVjd2oENupLKHCLTNTZGEng1LMraoN2e3yZ",
+        "2fg5QD1eD7rzNNCsvnhmXFm5hqNgwTTG8p7kQ6f3rx6f",
+        "8deJ9xeUvXSJwicYptA9mHsU2rN2pDx37KWzkDkEXhU6",
+        "FPAeapSTb5H33Jmm2cZXEJhBP2MdHYgoecxTmChHrocV",
+        "GpTXmkdvrTajqkzX1fBmC4BUjSboF9dHgfnqPqj8WAc4",
+        "2ezv4U5HmPpkt2xLsKnw1FyyGmjFBeW7c166p99Hw2xB",
+        "7BNaxx6KdUYrjACNQZ9He26NBFoFxujQMAfNLnArLGH5",
+        "5TaPtQ9DE1YMUfiyLv7CCNx1CEh88nWx3sPmNRz9zL75",
+        "Aqje5DsN4u2PHmQxGF9PKfpsDGwQRCBhWeLKHCFhSMXk",
+        "9sCcAxe56AuDQfJgU7kB1LpnQEYXDcGpAtXnN49H6SB3",
+        "HdKJM6Lvfp9aV9tvEMC8AD4GnsbFgMUkHLoK923Sn1ET",
+        "ADENywZuaxmt9Ar8Hju9z4zMYktjTLTVecDrDENrTsKF",
+        "BhBc8kbkgzXHmv79mPHCCVfpdZwanYabPR939g8foje6",
+        "9EibckQ6Jdfnhb4uAG352KaepYXspRrcNwFjC7xkvRXx",
+        "8Q1yVTrV5WLt8GACJ83idpPw2RRXETwaMHjxsZVo4PvD",
+        "8G5XHW2SF3fzCSFNGxvtHKFe9uZ58vScqhsQeyTwZPgQ",
+        "E45YLW6LV2GdvPu4HgpBMZF4veGmUqbK6hs2W3ykx2s1"
+    ])
 
     
 
