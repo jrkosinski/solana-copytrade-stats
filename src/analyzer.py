@@ -38,7 +38,8 @@ class WalletTradeAnalyzer:
                  rpc_url: str = "https://api.mainnet-beta.solana.com",
                  filter_outliers: bool = False,
                  matched_tokens_only: bool = True,
-                 use_cache: bool = False):
+                 use_cache: bool = False,
+                 analysis_id: str = None):
         """
         Initialize the Solana wallet analyzer.
 
@@ -50,6 +51,7 @@ class WalletTradeAnalyzer:
             matched_tokens_only: If True and target_wallet provided, only include trades where both
                                    wallets traded the same token (for focused latency analysis)
             use_cache: If True, cache transaction data to ./cached_results/ and reuse on subsequent runs
+            analysis_id: Optional unique identifier for organizing output files
 
         Raises:
             OSError: If HELIUS_API_KEY environment variable is not set
@@ -62,6 +64,7 @@ class WalletTradeAnalyzer:
         self.filter_outliers = filter_outliers
         self.matched_tokens_only = matched_tokens_only
         self.use_cache = use_cache
+        self.analysis_id = analysis_id
 
         # Status tracking for async analysis
         self.status = "initialized"  # possible values: initialized, running, completed, error
@@ -95,8 +98,84 @@ class WalletTradeAnalyzer:
         self.bot_txs = []
         self.target_txs = []
         self.trades = []
-      
- 
+
+    def get_output_directory(self) -> str:
+        """
+        Get the output directory path for this analysis.
+
+        Returns:
+            Path to output directory, organized by analysis_id if available
+        """
+        if self.analysis_id:
+            return f"./output/{self.analysis_id}"
+        else:
+            # Fallback to wallet address if no analysis_id
+            return f"./plots/{self.wallet_address}"
+
+    def get_vital_statistics(self) -> Dict:
+        """
+        Extract vital statistics from analysis results as JSON-serializable dictionary.
+
+        Returns:
+            Dictionary containing key performance metrics and statistics
+        """
+        if not hasattr(self, 'trades_df') or self.trades_df.empty:
+            return {
+                "status": "no_data",
+                "message": "No trade data available"
+            }
+
+        stats = {
+            "wallet_address": self.wallet_address,
+            "target_wallet": self.target_wallet,
+            "total_transactions": len(self.bot_txs) if hasattr(self, 'bot_txs') else 0,
+            "total_matched_trades": len(self.trades_df),
+            "analysis_complete": self.status == "completed"
+        }
+
+        # Trade statistics
+        if len(self.trades_df) > 0:
+            stats["trade_statistics"] = {
+                "total_profit_loss": float(self.trades_df['profit'].sum()),
+                "average_pnl_percent": float(self.trades_df['pnl_pct'].mean()),
+                "median_pnl_percent": float(self.trades_df['pnl_pct'].median()),
+                "win_rate": float((self.trades_df['profit'] > 0).sum() / len(self.trades_df) * 100),
+                "total_wins": int((self.trades_df['profit'] > 0).sum()),
+                "total_losses": int((self.trades_df['profit'] <= 0).sum()),
+                "average_hold_time_hours": float(self.trades_df['hold_seconds'].mean() / 3600),
+                "median_hold_time_hours": float(self.trades_df['hold_seconds'].median() / 3600),
+            }
+
+            # Best and worst trades
+            best_trade = self.trades_df.loc[self.trades_df['pnl_pct'].idxmax()]
+            worst_trade = self.trades_df.loc[self.trades_df['pnl_pct'].idxmin()]
+
+            stats["best_trade"] = {
+                "token": best_trade['token'],
+                "pnl_percent": float(best_trade['pnl_pct']),
+                "profit": float(best_trade['profit']),
+                "hold_time_hours": float(best_trade['hold_seconds'] / 3600)
+            }
+
+            stats["worst_trade"] = {
+                "token": worst_trade['token'],
+                "pnl_percent": float(worst_trade['pnl_pct']),
+                "profit": float(worst_trade['profit']),
+                "hold_time_hours": float(worst_trade['hold_seconds'] / 3600)
+            }
+
+        # Latency statistics (if available)
+        if hasattr(self, 'latency_df') and not self.latency_df.empty:
+            stats["latency_statistics"] = {
+                "total_matched_trades": len(self.latency_df),
+                "average_slot_latency": float(self.latency_df['slot_latency'].mean()),
+                "median_slot_latency": float(self.latency_df['slot_latency'].median()),
+                "average_time_latency_ms": float(self.latency_df['time_latency_ms'].mean()),
+                "median_time_latency_ms": float(self.latency_df['time_latency_ms'].median()),
+            }
+
+        return stats
+
     def analyze(self, lookback: int = 1000):
         """
         Main analysis function - orchestrates complete wallet analysis workflow.
@@ -212,11 +291,12 @@ class WalletTradeAnalyzer:
         Generate comprehensive analysis report with statistics and metrics
 
         Args:
-            save_to_file: If True, save report to ./plots/{wallet_address}/stats.txt
+            save_to_file: If True, save report to output directory
 
         Delegates to TradingReporter class for report generation
         """
-        reporter = TradingReporter(self.wallet_address, self.target_wallet)
+        output_dir = self.get_output_directory() if save_to_file else None
+        reporter = TradingReporter(self.wallet_address, self.target_wallet, output_dir)
         reporter.generate_report(self.trades_df, self.latency_df, len(self.bot_txs), save_to_file)
 
     def generate_plots(self, figsize=(20, 14), save_plots=False):
@@ -225,9 +305,10 @@ class WalletTradeAnalyzer:
 
         Args:
             figsize: Tuple of (width, height) for figure size in inches
-            save_plots: If True, save plots as PNG files to ./plots/ directory
+            save_plots: If True, save plots as PNG files to output directory
         """
-        plotter = TradingPlotter(self.wallet_address, self.target_wallet)
+        output_dir = self.get_output_directory() if save_plots else None
+        plotter = TradingPlotter(self.wallet_address, self.target_wallet, output_dir)
         plotter.plot_results(self.trades_df, self.latency_df, figsize, save_plots)
 
 

@@ -45,16 +45,18 @@ class TradingReporter:
         - target_slot (int): Target transaction slot
     """
 
-    def __init__(self, wallet_address: str, target_wallet: str = None):
+    def __init__(self, wallet_address: str, target_wallet: str = None, output_dir: str = None):
         """
         Initialize the reporter
 
         Args:
             wallet_address: Wallet address being analyzed
             target_wallet: Optional target wallet for comparison
+            output_dir: Optional custom output directory (defaults to ./plots/{wallet_address})
         """
         self.wallet_address = wallet_address
         self.target_wallet = target_wallet
+        self.output_dir = output_dir
 
     def generate_report(self, trades_df: pd.DataFrame, latency_df: pd.DataFrame = None,
                        bot_txs_count: int = 0, save_to_file: bool = True):
@@ -300,13 +302,18 @@ class TradingReporter:
         Args:
             report_lines: List of strings containing the report lines
         """
-        # Create plots directory structure if it doesn't exist
-        plots_dir = './plots'
-        wallet_dir = os.path.join(plots_dir, self.wallet_address)
-        os.makedirs(wallet_dir, exist_ok=True)
+        # Determine output directory
+        if self.output_dir:
+            report_dir = os.path.join(self.output_dir, 'reports')
+        else:
+            # Fallback to old behavior
+            plots_dir = './plots'
+            report_dir = os.path.join(plots_dir, self.wallet_address)
+
+        os.makedirs(report_dir, exist_ok=True)
 
         # Generate filename
-        filename = os.path.join(wallet_dir, 'stats.txt')
+        filename = os.path.join(report_dir, 'stats.txt')
 
         # Write report to file
         with open(filename, 'w', encoding='utf-8') as f:

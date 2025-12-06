@@ -53,16 +53,18 @@ class TradingPlotter:
         - token (str): Token symbol
     """
 
-    def __init__(self, wallet_address: str, target_wallet: str = None):
+    def __init__(self, wallet_address: str, target_wallet: str = None, output_dir: str = None):
         """
         Initialize the plotter
 
         Args:
             wallet_address: Wallet address being analyzed
             target_wallet: Optional target wallet for comparison
+            output_dir: Optional custom output directory (defaults to ./plots/{wallet_address})
         """
         self.wallet_address = wallet_address
         self.target_wallet = target_wallet
+        self.output_dir = output_dir
 
     def plot_results(self, trades_df: pd.DataFrame, latency_df: pd.DataFrame = None,
                     figsize=(20, 14), save_plots=False):
@@ -501,14 +503,17 @@ class TradingPlotter:
             plot_type: Type of plot (e.g., 'analysis_graphs', 'trade_table')
             plt_instance: Matplotlib pyplot instance
         """
-        # Create plots directory if it doesn't exist
-        os.makedirs('./plots', exist_ok=True)
+        # Determine output directory
+        if self.output_dir:
+            dirname = os.path.join(self.output_dir, 'plots')
+        else:
+            # Fallback to old behavior
+            dirname = f"./plots/{self.wallet_address}"
+
+        os.makedirs(dirname, exist_ok=True)
 
         # Generate filename with timestamp
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        dirname = f"./plots/{self.wallet_address}"
-        if not os.path.exists(dirname):
-            os.mkdir(dirname)
         filename = f"{dirname}/{plot_type}_{self.wallet_address[:8]}_{timestamp}.png"
 
         plt_instance.savefig(filename, dpi=300, bbox_inches='tight')
