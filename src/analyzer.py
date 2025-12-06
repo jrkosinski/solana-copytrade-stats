@@ -6,9 +6,9 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import json
 from web3 import Web3
-from trading_plotter import TradingPlotter
-from trading_reporter import TradingReporter
-from utils import get_solscan_url, print_trade_match, print_transaction_analysis, is_base_currency, is_sol
+from src.trading_plotter import TradingPlotter
+from src.trading_reporter import TradingReporter
+from src.utils import get_solscan_url, print_trade_match, print_transaction_analysis, is_base_currency, is_sol
 
 
 class WalletTradeAnalyzer:
@@ -35,7 +35,6 @@ class WalletTradeAnalyzer:
     MIN_PNL_PCT = -80.0   #Exclude trades with loss < -80%
 
     def __init__(self, wallet_address: str, target_wallet: str = None,
-                 rpc_url: str = "https://api.mainnet-beta.solana.com",
                  filter_outliers: bool = False,
                  matched_tokens_only: bool = True,
                  use_cache: bool = False,
@@ -58,7 +57,7 @@ class WalletTradeAnalyzer:
         """
         self.wallet_address = wallet_address
         self.target_wallet = target_wallet
-        self.rpc_url = rpc_url
+        self.rpc_url = "https://api.mainnet-beta.solana.com"
         self.helius_api_key = os.getenv('HELIUS_API_KEY')
         self.shyft_api_key = os.getenv('SHYFT_API_KEY')
         self.filter_outliers = filter_outliers

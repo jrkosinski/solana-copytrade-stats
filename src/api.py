@@ -5,7 +5,7 @@ from fastapi import FastAPI, Query, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, Dict, List
-from analyzer import WalletTradeAnalyzer
+from src.analyzer import WalletTradeAnalyzer
 import uuid
 import asyncio
 import os

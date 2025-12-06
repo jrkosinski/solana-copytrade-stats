@@ -161,6 +161,9 @@ full_analyze = True
 
 if (full_analyze): 
 
+    #full_solana_analysis("CyaE1VxvBrahnPWkqm5VsdCvyS2QmNht2UFrKJHga54o", #"8WEs4FurJNq3zsvUVXKuLCPteGEjYGNq45E4yPpY6no3", 
+    #    None, #"AEfUGoV2qh1A1k3KxuEpZS9o8wSLKXpHpCUkv5mov6Zk", 
+    #    5000, use_cache=False)
 
     full_analyses([
         "2fg5QD1eD7rzNNCsvnhmXFm5hqNgwTTG8p7kQ6f3rx6f",

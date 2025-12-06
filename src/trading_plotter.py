@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from IPython.display import display
 import ipywidgets as widgets
-from utils import shorten_signature, format_token_display
+from src.utils import shorten_signature, format_token_display
 
 # Set style for better looking plots
 plt.style.use('seaborn-v0_8-darkgrid')
@@ -270,7 +270,7 @@ class TradingPlotter:
         if save_plots:
             self._save_plot('analysis_graphs', plt)
 
-        plt.show()
+        #plt.show()
 
     def _plot_table(self, trades_df, save_plots=False):
         """
@@ -295,7 +295,7 @@ class TradingPlotter:
         if save_plots:
             self._save_plot('trade_table', plt)
 
-        plt.show()
+        #plt.show()
 
     def _plot_entry_exit_behavior(self, trades_df, figsize=(20, 14), save_plots=False):
         """
@@ -404,7 +404,7 @@ class TradingPlotter:
         if save_plots:
             self._save_plot('behavior_analysis', plt)
 
-        plt.show()
+        #plt.show()
 
     def _add_trade_table(self, ax, trades_df):
         """
