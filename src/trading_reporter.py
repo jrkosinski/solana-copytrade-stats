@@ -293,7 +293,9 @@ class TradingReporter:
 
     def _save_report_to_file(self, report_lines: list):
         """
-        Save the report to a file in the wallet's plots subdirectory
+        Save the report to a file in the wallet's plots subdirectory.
+
+        Creates ./plots/{wallet_address}/stats.txt with the complete report.
 
         Args:
             report_lines: List of strings containing the report lines

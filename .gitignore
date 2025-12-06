@@ -12,6 +12,7 @@ __pycache__/
 # Project specific 
 plots/
 cached_results/
+csv/
 
 # jupyter
 share/

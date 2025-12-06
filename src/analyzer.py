@@ -12,7 +12,22 @@ from utils import get_solscan_url, print_trade_match, print_transaction_analysis
 
 
 class SolanaCopyTradingAnalyzer:
-    """Analyze copy-trading bot wallet performance on Solana"""
+    """
+    Analyze trading wallet performance and profitability on Solana.
+
+    This analyzer fetches transaction history for Solana wallets, matches buy/sell pairs
+    to calculate profit/loss, and generates comprehensive performance reports. Can optionally
+    compare copy-trading bot performance against a target wallet to measure latency.
+
+    Key Features:
+    - Fetches and parses SWAP and TRANSFER transactions via Helius API
+    - Matches buy/sell pairs using FIFO methodology
+    - Calculates P/L in multiple currencies (SOL, USDC, USDT)
+    - Tracks position sizes, hold times, and win rates
+    - Measures copy-trading latency when target wallet provided
+    - Generates reports and visualizations
+    - Supports caching for improved performance
+    """
 
     #Outlier filter constants for report generation
     #Trades with P/L % above MAX_PNL_PCT or below MIN_PNL_PCT will be excluded
@@ -27,16 +42,21 @@ class SolanaCopyTradingAnalyzer:
                  filter_to_matched_only: bool = True,
                  use_cache: bool = False):
         """
-        Initialize the Solana analyzer
+        Initialize the Solana wallet analyzer.
 
         Args:
-            main_wallet: The copy-trading bot wallet address
-            target_wallet: The wallet being copied (optional)
-            rpc_url: Solana RPC endpoint
-            helius_api_key: Helius API key for enhanced data (optional)
-            shyft_api_key: Shyft API key for transaction parsing (optional)
-            filter_outliers: If True, filter extreme P/L outliers from analysis
-            filter_to_matched_only: If True and target_wallet provided, only analyze trades that matched between main and target
+            main_wallet: Primary wallet address to analyze
+            target_wallet: Optional wallet to compare against for latency analysis
+            rpc_url: Solana RPC endpoint (currently unused, Helius API used instead)
+            helius_api_key: Helius API key (required for transaction fetching)
+            shyft_api_key: Shyft API key (currently unused, reserved for future use)
+            filter_outliers: If True, exclude trades with P/L outside MIN_PNL_PCT to MAX_PNL_PCT range
+            filter_to_matched_only: If True and target_wallet provided, only include trades where both
+                                   wallets traded the same token (for focused latency analysis)
+            use_cache: If True, cache transaction data to ./cached_results/ and reuse on subsequent runs
+
+        Raises:
+            OSError: If helius_api_key is not provided
         """
         self.main_wallet = main_wallet
         self.target_wallet = target_wallet
@@ -82,13 +102,32 @@ class SolanaCopyTradingAnalyzer:
  
     def analyze_wallet(self, limit: int = 1000):
         """
-        Main analysis function - orchestrates fetching, matching, and analyzing trades
+        Main analysis function - orchestrates complete wallet analysis workflow.
+
+        This method:
+        1. Fetches transaction history for main wallet
+        2. Matches buy/sell pairs and calculates P/L
+        3. Optionally fetches target wallet trades and calculates latency
+        4. Filters trades based on configured settings
+        5. Populates self.trades_df and self.latency_df DataFrames
 
         Args:
-            limit: API request limit per call
+            limit: Maximum number of transactions to fetch per wallet
 
         Returns:
-            DataFrame containing matched trades with P/L calculations
+            DataFrame containing matched trade pairs with columns:
+            - token, token_address: Token identifier and mint address
+            - buy_sig, sell_sig: Transaction signatures
+            - buy_time, sell_time: Timestamps
+            - buy_slot, sell_slot, slot_diff: Blockchain slot numbers
+            - hold_seconds, hold_days: Position duration
+            - buy_amount, sell_amount, amount_traded: Token quantities
+            - cost, proceeds: Entry and exit prices in base currency
+            - cost_token, proceeds_token: Currency symbols (SOL, USDC, etc.)
+            - profit, pnl_pct: Profit/loss calculations
+            - position_size, position_size_currency: Entry position value
+            - num_buys, num_sells: Number of transactions for this token
+            - largest_buy_pct, largest_sell_pct: Largest single transaction percentages
         """
         
         print(f"🚀 Analyzing Solana Copy-Trading Bot")
@@ -189,13 +228,15 @@ class SolanaCopyTradingAnalyzer:
      
     def _get_cached_trade_results(self, wallet: str) -> Tuple[bool, List[Dict]]:
         """
-        Load previously cached trade data from JSON file
+        Load previously cached trade data from JSON file.
 
         Args:
             wallet: Wallet address used as cache file name
 
         Returns:
-            True if cache loaded successfully, False otherwise
+            Tuple of (success: bool, transactions: List[Dict])
+            - success: True if cache file exists and was loaded successfully
+            - transactions: List of cached trade dictionaries, empty dict if failed
         """ 
         cache_file = self._get_cache_file_name(wallet)
         txs = {}
@@ -215,10 +256,11 @@ class SolanaCopyTradingAnalyzer:
 
     def _write_to_trades_cache(self, wallet: str, transactions: List[Dict]):
         """
-        Save trade data to JSON cache file
+        Save trade data to JSON cache file in ./cached_results/ directory.
 
         Args:
             wallet: Wallet address used as cache file name
+            transactions: List of trade dictionaries to cache
         """ 
         cache_file = self._get_cache_file_name(wallet)
 
@@ -229,16 +271,31 @@ class SolanaCopyTradingAnalyzer:
         except Exception as e:
             print(f"   Warning: Could not write cache file: {e}")
     
-    def _get_cache_file_name(self, wallet: str) -> str: 
+    def _get_cache_file_name(self, wallet: str) -> str:
+        """
+        Generate cache file path for a wallet.
+
+        Args:
+            wallet: Wallet address
+
+        Returns:
+            Path to cache file: ./cached_results/{wallet}.json
+        """
         return f"./cached_results/{wallet}.json"
 
     def _fetch_trades(self, wallet: str, limit: int = 100) -> List[Dict]:
         """
-        Fetch trades for a wallet, using cache if available or fetching fresh data
+        Fetch trades for a wallet, using cache if enabled or fetching fresh data.
+
+        This method checks for cached results if use_cache=True, otherwise fetches
+        fresh data from Helius API. Automatically caches results when fetching fresh.
 
         Args:
             wallet: Wallet address to fetch trades for
-            limit: API request limit per call
+            limit: Maximum number of transactions to fetch from API
+
+        Returns:
+            List of trade dictionaries with parsed transaction data
         """
         txs = {}
 
@@ -261,20 +318,43 @@ class SolanaCopyTradingAnalyzer:
         return txs
 
     def _fetch_trades_raw(self, wallet: str, limit: int = 1000):
+        """
+        Fetch raw trade data without caching (wrapper method).
+
+        Args:
+            wallet: Wallet address to fetch trades for
+            limit: Maximum number of transactions to fetch
+
+        Returns:
+            List of trade dictionaries from Helius API
+        """
         # Fetch fresh data
         return self._fetch_trades_helius(wallet, limit, include_transfers=True)
 
     def _fetch_trades_helius(self, wallet: str, limit: int = 1000, include_transfers: bool = False) -> List[Dict]:
         """
-        Fetch and parse trades using Helius API (more reliable than basic RPC)
+        Fetch and parse trades using Helius API with pagination support.
+
+        Fetches transactions from Helius API, parses SWAP and optionally TRANSFER transactions,
+        and extracts token amounts, symbols, and metadata. Uses pagination to fetch up to 'limit'
+        transactions. Handles bidirectional transfers (Jupiter swaps misclassified as TRANSFER).
 
         Args:
             wallet: Wallet address to fetch trades for
-            limit: API request limit per call
-            include_transfers: If True, also fetch token transfers to track complete position history
+            limit: Maximum number of transactions to process
+            include_transfers: If True, include TRANSFER transactions (for complete position tracking)
 
         Returns:
-            List of dictionaries containing parsed trade data
+            List of trade dictionaries with keys:
+            - signature: Transaction signature
+            - timestamp: Unix timestamp
+            - slot: Blockchain slot number
+            - token_in, token_in_symbol, token_in_amount: Spent token data
+            - token_out, token_out_symbol, token_out_amount: Received token data
+            - fee: Transaction fee in SOL
+            - success: Whether transaction succeeded
+            - is_transfer: True for TRANSFER type, False for SWAP
+            - from_account: Source account for transfers
         """
 
         print(f"🔍 Fetching trades via Helius for {wallet[:8]}...{wallet[-6:]}")
@@ -498,14 +578,19 @@ class SolanaCopyTradingAnalyzer:
     
     def _match_trades_for_pnl(self, trades: List[Dict]) -> List[Dict]:
         """
-        Match buy and sell trades using FIFO to calculate profit/loss
-        NOW USES SIMPLE TOKEN FLOW APPROACH (from POC)
+        Match buy and sell trades using FIFO methodology to calculate profit/loss.
+
+        Groups trades by token, separates buys from sells, then matches them using FIFO
+        (First-In-First-Out). Handles cross-currency trades when both currencies are
+        acceptable base currencies (SOL, USDC, USDT). Skips TRANSFER transactions as
+        they don't represent actual swaps.
 
         Args:
-            trades: List of raw trade dictionaries from transaction parsing
+            trades: List of raw trade dictionaries from _fetch_trades_helius()
 
         Returns:
-            List of matched trade pairs with P/L calculations
+            List of matched trade pair dictionaries with comprehensive P/L metrics.
+            See analyze_wallet() docstring for complete list of returned fields.
         """
         print('Match buy and sell trades to calculate P/L (using POC method)')
 

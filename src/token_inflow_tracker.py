@@ -16,22 +16,57 @@ import json
 
 
 class TokenInflowTracker:
-    """Track how tokens entered a wallet"""
+    """
+    Track how and when tokens entered a wallet.
+
+    Analyzes transaction history to identify all token inflows (transfers and swaps
+    where tokens were received). Useful for understanding token acquisition patterns
+    and sources.
+    """
 
     def __init__(self, wallet: str, helius_api_key: str = None):
+        """
+        Initialize the token inflow tracker.
+
+        Args:
+            wallet: Wallet address to track inflows for
+            helius_api_key: Helius API key, or reads from HELIUS_API_KEY env var if not provided
+        """
         self.wallet = wallet
         self.helius_api_key = helius_api_key or os.getenv('HELIUS_API_KEY')
         self.helius_url = "https://api.helius.xyz/v0"
 
     def track_token_inflows(self, limit: int = 1000) -> Dict[str, List[Dict]]:
         """
-        Track all token inflows to the wallet
+        Track all token inflows to the wallet from transaction history.
+
+        Fetches and analyzes transactions to identify every instance where tokens
+        were received (via transfer or swap). Groups results by token mint address.
 
         Args:
-            limit: Maximum number of transactions to check
+            limit: Maximum number of transactions to fetch and analyze
 
         Returns:
-            Dictionary mapping token addresses to list of inflow events
+            Dictionary mapping token mint addresses to inflow data:
+            {
+                'mint_address': {
+                    'symbol': str,
+                    'total_received': float,
+                    'inflows': [
+                        {
+                            'signature': str,
+                            'type': str,  # 'SWAP', 'TRANSFER', etc.
+                            'timestamp': int,
+                            'datetime': datetime,
+                            'amount': float,
+                            'from_account': str,
+                            'from_short': str
+                        },
+                        ...
+                    ]
+                },
+                ...
+            }
         """
         print(f"🔍 Tracking token inflows for {self.wallet[:8]}...{self.wallet[-6:]}")
         print(f"   Checking up to {limit} transactions...\n")
@@ -115,7 +150,16 @@ class TokenInflowTracker:
         return token_inflows
 
     def _get_token_symbol(self, transfer: Dict, tx: Dict) -> str:
-        """Extract token symbol from transfer or transaction data"""
+        """
+        Extract token symbol from transfer or transaction data.
+
+        Args:
+            transfer: Token transfer dictionary from transaction
+            tx: Full transaction dictionary
+
+        Returns:
+            Token symbol (known tokens) or first 8 chars of mint address
+        """
         # Try to get symbol from various places
         mint = transfer.get('mint', 'Unknown')
 
@@ -133,7 +177,12 @@ class TokenInflowTracker:
         return mint[:8] if len(mint) > 8 else mint
 
     def print_report(self, token_inflows: Dict[str, List[Dict]]):
-        """Print a formatted report of token inflows"""
+        """
+        Print a formatted report of token inflows to console.
+
+        Args:
+            token_inflows: Dictionary returned from track_token_inflows()
+        """
         print("\n" + "=" * 80)
         print("📊 TOKEN INFLOW REPORT")
         print("=" * 80)
@@ -169,7 +218,13 @@ class TokenInflowTracker:
         print("\n" + "=" * 80)
 
     def export_to_json(self, token_inflows: Dict, filename: str = None):
-        """Export token inflows to JSON file"""
+        """
+        Export token inflows data to JSON file.
+
+        Args:
+            token_inflows: Dictionary returned from track_token_inflows()
+            filename: Output filename, defaults to token_inflows_{wallet}_{timestamp}.json
+        """
         if filename is None:
             filename = f"token_inflows_{self.wallet[:8]}_{datetime.now().strftime('%Y%m%d_%H%M')}.json"
 
