@@ -11,7 +11,7 @@ from trading_reporter import TradingReporter
 from utils import get_solscan_url, print_trade_match, print_transaction_analysis, is_base_currency, is_sol
 
 
-class SolanaCopyTradingAnalyzer:
+class WalletTradeAnalyzer:
     """
     Analyze trading wallet performance and profitability on Solana.
 
@@ -34,47 +34,40 @@ class SolanaCopyTradingAnalyzer:
     MAX_PNL_PCT = 50000.0   #Exclude trades with profit > 50000%
     MIN_PNL_PCT = -80.0   #Exclude trades with loss < -80%
 
-    def __init__(self, main_wallet: str, target_wallet: str = None,
+    def __init__(self, wallet_address: str, target_wallet: str = None,
                  rpc_url: str = "https://api.mainnet-beta.solana.com",
-                 helius_api_key: str = None,
-                 shyft_api_key: str = None,
                  filter_outliers: bool = False,
-                 filter_to_matched_only: bool = True,
+                 matched_tokens_only: bool = True,
                  use_cache: bool = False):
         """
         Initialize the Solana wallet analyzer.
 
         Args:
-            main_wallet: Primary wallet address to analyze
+            wallet_address: Primary wallet address to analyze
             target_wallet: Optional wallet to compare against for latency analysis
             rpc_url: Solana RPC endpoint (currently unused, Helius API used instead)
-            helius_api_key: Helius API key (required for transaction fetching)
-            shyft_api_key: Shyft API key (currently unused, reserved for future use)
             filter_outliers: If True, exclude trades with P/L outside MIN_PNL_PCT to MAX_PNL_PCT range
-            filter_to_matched_only: If True and target_wallet provided, only include trades where both
+            matched_tokens_only: If True and target_wallet provided, only include trades where both
                                    wallets traded the same token (for focused latency analysis)
             use_cache: If True, cache transaction data to ./cached_results/ and reuse on subsequent runs
 
         Raises:
-            OSError: If helius_api_key is not provided
+            OSError: If HELIUS_API_KEY environment variable is not set
         """
-        self.main_wallet = main_wallet
+        self.wallet_address = wallet_address
         self.target_wallet = target_wallet
         self.rpc_url = rpc_url
-        self.helius_api_key = helius_api_key
-        self.shyft_api_key = shyft_api_key
+        self.helius_api_key = os.getenv('HELIUS_API_KEY')
+        self.shyft_api_key = os.getenv('SHYFT_API_KEY')
         self.filter_outliers = filter_outliers
-        self.filter_to_matched_only = filter_to_matched_only
+        self.matched_tokens_only = matched_tokens_only
         self.use_cache = use_cache
 
-        if (helius_api_key is None): 
-            raise OSError("No helius API key detected")
+        if not self.helius_api_key:
+            raise OSError("HELIUS_API_KEY environment variable not set")
 
         if not self.target_wallet:
-            self.filter_to_matched_only = False
-
-        print(f"Helius API KEY IS {helius_api_key}")
-        print(f"=====================================")
+            self.matched_tokens_only = False
         
         #Helius API endpoint
         self.helius_url = f"https://api.helius.xyz/v0"
@@ -100,12 +93,12 @@ class SolanaCopyTradingAnalyzer:
         self.trades = []
       
  
-    def analyze_wallet(self, limit: int = 1000):
+    def analyze(self, limit: int = 1000):
         """
         Main analysis function - orchestrates complete wallet analysis workflow.
 
         This method:
-        1. Fetches transaction history for main wallet
+        1. Fetches transaction history for wallet
         2. Matches buy/sell pairs and calculates P/L
         3. Optionally fetches target wallet trades and calculates latency
         4. Filters trades based on configured settings
@@ -129,13 +122,13 @@ class SolanaCopyTradingAnalyzer:
             - num_buys, num_sells: Number of transactions for this token
             - largest_buy_pct, largest_sell_pct: Largest single transaction percentages
         """
-        
-        print(f"🚀 Analyzing Solana Copy-Trading Bot")
-        print(f"   Bot Wallet: {self.main_wallet}")
+
+        print(f"🚀 Analyzing Solana Wallet Trades")
+        print(f"   Wallet: {self.wallet_address}")
         print("=" * 80)
-        
+
         #Fetch bot trades
-        self.bot_txs = self._fetch_trades(self.main_wallet, limit=limit)
+        self.bot_txs = self._fetch_trades(self.wallet_address, limit=limit)
         
         #Match trades for P/L
         print(f"\n💰 Matching trades for P/L calculation out of {len(self.bot_txs)} txs...")
@@ -168,7 +161,7 @@ class SolanaCopyTradingAnalyzer:
             self.latency_df = pd.DataFrame()
 
         #Filter to matched trades only if requested
-        if self.filter_to_matched_only and self.target_wallet and not self.latency_df.empty and not self.trades_df.empty:
+        if self.matched_tokens_only and self.target_wallet and not self.latency_df.empty and not self.trades_df.empty:
             original_count = len(self.trades_df)
 
             #Get set of matched token symbols from latency data
@@ -184,7 +177,7 @@ class SolanaCopyTradingAnalyzer:
             filtered_count = len(self.trades_df)
 
             if filtered_count == 0:
-                print(f"\n⚠️ WARNING: filter_to_matched_only removed all trades!")
+                print(f"\n⚠️ WARNING: matched_tokens_only removed all trades!")
                 print(f"   This might indicate a token symbol mismatch between latency matching and trade matching.")
                 print(f"   Keeping all {original_count} trades for analysis.")
                 # Reload the original trades_df
@@ -209,10 +202,10 @@ class SolanaCopyTradingAnalyzer:
 
         Delegates to TradingReporter class for report generation
         """
-        reporter = TradingReporter(self.main_wallet, self.target_wallet)
+        reporter = TradingReporter(self.wallet_address, self.target_wallet)
         reporter.generate_report(self.trades_df, self.latency_df, len(self.bot_txs), save_to_file)
-    
-    def plot_results(self, figsize=(20, 14), save_plots=False):
+
+    def generate_plots(self, figsize=(20, 14), save_plots=False):
         """
         Create visualizations with tabbed interface for Jupyter notebooks
 
@@ -220,7 +213,7 @@ class SolanaCopyTradingAnalyzer:
             figsize: Tuple of (width, height) for figure size in inches
             save_plots: If True, save plots as PNG files to ./plots/ directory
         """
-        plotter = TradingPlotter(self.main_wallet, self.target_wallet)
+        plotter = TradingPlotter(self.wallet_address, self.target_wallet)
         plotter.plot_results(self.trades_df, self.latency_df, figsize, save_plots)
 
 

@@ -6,7 +6,7 @@ This project provides utilities for analyzing the profitability and behavior of 
 
 ## Core Analysis Pipeline (Production-Ready)
 
-### 1. SolanaCopyTradingAnalyzer
+### 1. WalletTradeAnalyzer
 **File:** [src/analyzer.py](src/analyzer.py:14)
 **Lines:** 1335
 **Status:** Primary/Core Module
@@ -14,31 +14,30 @@ This project provides utilities for analyzing the profitability and behavior of 
 The main analyzer that powers the entire analysis pipeline. This is the heart of the project.
 
 **Capabilities:**
-- Analyzes profitability of copy-trading bot wallets
+- Analyzes profitability of trading wallets
 - Fetches wallet transactions via Helius API
 - Matches buy/sell pairs for P&L calculation
 - Handles both SWAP and TRANSFER transactions
 - Tracks position sizes, hold times, win rates
-- Calculates latency between bot and target wallets (when target wallet is provided)
+- Calculates latency between wallet and target wallets (when target wallet is provided)
 - Supports caching for improved performance
 - Filters outliers and provides clean data
 
 **Key Methods:**
-- `analyze_wallet()` - Main orchestration method
+- `analyze()` - Main orchestration method
 - `generate_report()` - Creates comprehensive text reports
-- `plot_results()` - Generates visualizations
+- `generate_plots()` - Generates visualizations
 
 **Usage:**
 ```python
-analyzer = SolanaCopyTradingAnalyzer(
-    main_wallet="<wallet_address>",
+analyzer = WalletTradeAnalyzer(
+    wallet_address="<wallet_address>",
     target_wallet="<optional_target>",
-    helius_api_key=api_key,
     use_cache=True
 )
-trades_df = analyzer.analyze_wallet(limit=1000)
+trades_df = analyzer.analyze(limit=1000)
 analyzer.generate_report()
-analyzer.plot_results(save_plots=True)
+analyzer.generate_plots(save_plots=True)
 ```
 
 ### 2. TradingReporter
@@ -193,7 +192,7 @@ Shared utility functions used across modules:
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────────┐
-│              SolanaCopyTradingAnalyzer                       │
+│              WalletTradeAnalyzer                             │
 │  - Fetch transactions (Helius API)                          │
 │  - Parse swaps & transfers                                  │
 │  - Match buy/sell pairs                                     │
@@ -240,14 +239,14 @@ SHYFT_API_KEY=<optional>
 1. **TokenInflowTracker** - Could be integrated into main analyzer for richer acquisition analysis
 2. **Enhanced API Support** - Additional data sources beyond Helius
 
-### Renaming Candidates
-The `SolanaCopyTradingAnalyzer` class could be renamed to better reflect broader capabilities:
-- `WalletProfitabilityAnalyzer`
-- `TradingPerformanceAnalyzer`
-- `SolanaWalletAnalyzer`
-- `TradingBotAnalyzer`
-
-Current name assumes copy-trading context, but the analyzer works for any trading wallet.
+### Recent Changes
+- **2025-12-06**: Renamed `SolanaCopyTradingAnalyzer` to `WalletTradeAnalyzer`
+  - Changed `main_wallet` parameter to `wallet_address` for clarity
+  - Changed `filter_to_matched_only` to `matched_tokens_only` for clarity
+  - Renamed `analyze_wallet()` to `analyze()`
+  - Renamed `plot_results()` to `generate_plots()`
+  - Removed `helius_api_key` and `shyft_api_key` from constructor - now read from environment variables
+  - Name now better reflects that the analyzer works for any trading wallet, not just copy-trading bots
 
 ## Architecture Notes
 

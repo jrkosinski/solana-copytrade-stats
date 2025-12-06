@@ -1,80 +1,77 @@
 import os
 from datetime import datetime
-from analyzer import SolanaCopyTradingAnalyzer, analyze_transaction
+from analyzer import WalletTradeAnalyzer, analyze_transaction
 
 #TODO: that bug where it thinks a str is a tx: Error with Helius API: 'str' object has no attribute 'get'
 #TODO: outliers filtered out but not for the plotting
 #TODO: bug: not calculating latency
 
 
-def quick_solana_analysis(main_wallet: str, 
+def quick_solana_analysis(wallet_address: str,
                          target_wallet: str = None,
                          limit: int = 1000,
                          use_cache=True):
     """
-    Quick analysis function for Solana copy-trading bots
-    
+    Quick analysis function for Solana wallets
+
     Args:
-        main_wallet: Bot wallet address
+        wallet_address: Wallet address to analyze
         target_wallet: Target wallet to compare (optional)
     """
-    
-    print("🚀 Solana Copy-Trading Bot Quick Analysis")
+
+    print("🚀 Solana Wallet Quick Analysis")
     print("=" * 60)
-    
-    helius_api_key = os.getenv('HELIUS_API_KEY')
 
     # Create analyzer
-    analyzer = SolanaCopyTradingAnalyzer(
-        main_wallet=main_wallet,
+    analyzer = WalletTradeAnalyzer(
+        wallet_address=wallet_address,
         target_wallet=target_wallet,
-        helius_api_key=helius_api_key,
         use_cache=use_cache
     )
-    
+
     # Run analysis
-    trades_df = analyzer.analyze_wallet(limit=limit)  # Limit for quick analysis
-    
+    trades_df = analyzer.analyze(limit=limit)  # Limit for quick analysis
+
     # Generate report
     analyzer.generate_report()
 
     return analyzer, trades_df
 
-def full_solana_analysis(main_wallet: str,
+def full_solana_analysis(wallet_address: str,
                          target_wallet: str = None,
                          limit: int = 1000,
                          save_plots: bool = False,
                          use_cache=True):
     """
-    Full analysis function for Solana copy-trading bots
+    Full analysis function for Solana wallets
 
     Args:
-        main_wallet: Bot wallet address
+        wallet_address: Wallet address to analyze
         target_wallet: Target wallet to compare (optional)
         limit: API request limit per call
         save_plots: If True, save plots as PNG files to ./plots/ directory
     """
 
-    analyzer, trades_df = quick_solana_analysis(main_wallet, target_wallet, limit, use_cache=use_cache)
+    analyzer, trades_df = quick_solana_analysis(wallet_address, target_wallet, limit, use_cache=use_cache)
 
     # Plot if data available
     if not trades_df.empty or not analyzer.latency_df.empty:
-        analyzer.plot_results(save_plots=save_plots)
+        analyzer.generate_plots(save_plots=save_plots)
 
     # Export results
     if not trades_df.empty:
-        filename = f"./csv/solana_trades_{main_wallet[:8]}_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
+        filename = f"./csv/solana_trades_{wallet_address[:8]}_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
         trades_df.to_csv(filename, index=False)
         print(f"\n✅ Results exported to {filename}")
 
     return analyzer, trades_df
 
-def quick_analyses(main_wallets): 
-    for wallet in main_wallets: 
+def quick_analyses(wallets):
+    for wallet in wallets:
         quick_solana_analysis(wallet, None, 3000, use_cache=True)
 
-def full_analyses(main_wallets):
-    for wallet in main_wallets:
+def full_analyses(wallets):
+    for wallet in wallets:
         full_solana_analysis(wallet, None, 3000, save_plots=True)
 
 def analyze_tx(signature: str):
@@ -90,31 +87,29 @@ def analyze_tx(signature: str):
     Example:
         analyze_tx("5Jb3...")
     """
-    helius_api_key = os.getenv('HELIUS_API_KEY')
-
-    return analyze_transaction(signature, helius_api_key)
+    return analyze_transaction(signature, os.getenv('HELIUS_API_KEY'))
 
 def analyze_txs(signatures):
     for sig in signatures:
         analyze_tx(sig)
 
-def find_copy_target(main_wallet: str,
+def find_copy_target(wallet_address: str,
                      lookback_blocks: int = 10,
                      min_correlation_score: int = 2,
                      num_trades_to_analyze: int = 5,
                      limit: int = 100):
     """
-    Find potential copy-trading targets for a bot wallet
+    Find potential copy-trading targets for a wallet
 
-    This analyzes the bot's trade history and looks for wallets that
-    consistently traded the same tokens shortly before the bot.
+    This analyzes the wallet's trade history and looks for wallets that
+    consistently traded the same tokens shortly before this wallet.
 
     Args:
-        main_wallet: Bot wallet address to analyze
+        wallet_address: Wallet address to analyze
         lookback_blocks: How many blocks to look backwards from each trade
         min_correlation_score: Minimum number of matching trade pairs required
-        num_trades_to_analyze: Number of bot's trades to analyze (smaller = faster)
-        limit: How many transactions to fetch from bot
+        num_trades_to_analyze: Number of wallet's trades to analyze (smaller = faster)
+        limit: How many transactions to fetch from wallet
 
     Returns:
         Dictionary with:
@@ -129,21 +124,16 @@ def find_copy_target(main_wallet: str,
     """
     from src.utils import find_copy_trading_targets
 
-    helius_api_key = os.getenv('HELIUS_API_KEY')
-    if not helius_api_key:
-        raise ValueError("HELIUS_API_KEY environment variable not set")
-
-    print(f"🔍 Finding copy-trading targets for {main_wallet[:8]}...")
+    print(f"🔍 Finding copy-trading targets for {wallet_address[:8]}...")
     print("=" * 80)
 
-    # Step 1: Analyze bot's trades
-    analyzer = SolanaCopyTradingAnalyzer(
-        main_wallet=main_wallet,
-        target_wallet=None,
-        helius_api_key=helius_api_key
+    # Step 1: Analyze wallet's trades
+    analyzer = WalletTradeAnalyzer(
+        wallet_address=wallet_address,
+        target_wallet=None
     )
 
-    trades_df = analyzer.analyze_wallet(limit=limit)
+    trades_df = analyzer.analyze(limit=limit)
     matched_trades = analyzer.trades
 
     if not matched_trades:
@@ -158,10 +148,10 @@ def find_copy_target(main_wallet: str,
 
     result = find_copy_trading_targets(
         bot_trades=matched_trades[:num_to_analyze],
-        helius_api_key=helius_api_key,
+        helius_api_key=os.getenv('HELIUS_API_KEY'),
         lookback_blocks=lookback_blocks,
         min_correlation_score=min_correlation_score,
-        bot_wallet=main_wallet
+        bot_wallet=wallet_address
     )
 
     return result
@@ -169,26 +159,6 @@ def find_copy_target(main_wallet: str,
 full_analyze = True
 
 if (full_analyze): 
-
-    #full_solana_analysis("8deJ9xeUvXSJwicYptA9mHsU2rN2pDx37KWzkDkEXhU6",
-    #    None, 1000)
-
-#AEfUGoV2qh1A1k3KxuEpZS9o8wSLKXpHpCUkv5mov6Zk
-#########################
-    #full_solana_analysis("CyaE1VxvBrahnPWkqm5VsdCvyS2QmNht2UFrKJHga54o", #"8WEs4FurJNq3zsvUVXKuLCPteGEjYGNq45E4yPpY6no3", 
-    #    None, #"AEfUGoV2qh1A1k3KxuEpZS9o8wSLKXpHpCUkv5mov6Zk", 
-    #    5000, use_cache=False)
-
-    #Confirmed:
-    #4CoXh8R1QbbazXrftAx8HDAnUe9uqPJC1TPcZWayTpdi
-    #4TqoBiBYPKVjd2oENupLKHCLTNTZGEng1LMraoN2e3yZ
-
-    #Not Confirmed
-    #8deJ9xeUvXSJwicYptA9mHsU2rN2pDx37KWzkDkEXhU6
-    #ADENywZuaxmt9Ar8Hju9z4zMYktjTLTVecDrDENrTsKF
-    #FPAeapSTb5H33Jmm2cZXEJhBP2MdHYgoecxTmChHrocV
-    #CU3ErWQvUQhxiLE8Kvo6NsYujTudYLUAJ1qogVkMJQ1r
-    #TTdzckfwm7Y46gUULe6zmwC9z5pV1o5qaKkvAbAvXvY  ?
 
 
     full_analyses([
@@ -237,48 +207,6 @@ else:
     ])
 
 
-#full_analyses([
-#    "2fg5QD1eD7rzNNCsvnhmXFm5hqNgwTTG8p7kQ6f3rx6f",
-#    "8deJ9xeUvXSJwicYptA9mHsU2rN2pDx37KWzkDkEXhU6",
-#    "FPAeapSTb5H33Jmm2cZXEJhBP2MdHYgoecxTmChHrocV",
-#    "CU3ErWQvUQhxiLE8Kvo6NsYujTudYLUAJ1qogVkMJQ1r",
-#    "GpTXmkdvrTajqkzX1fBmC4BUjSboF9dHgfnqPqj8WAc4",
-#    "2ezv4U5HmPpkt2xLsKnw1FyyGmjFBeW7c166p99Hw2xB",
-#    "7BNaxx6KdUYrjACNQZ9He26NBFoFxujQMAfNLnArLGH5",
-#    "5TaPtQ9DE1YMUfiyLv7CCNx1CEh88nWx3sPmNRz9zL75",
-#    "Aqje5DsN4u2PHmQxGF9PKfpsDGwQRCBhWeLKHCFhSMXk",
-#    "9sCcAxe56AuDQfJgU7kB1LpnQEYXDcGpAtXnN49H6SB3",
-#    "HdKJM6Lvfp9aV9tvEMC8AD4GnsbFgMUkHLoK923Sn1ET",
-#    "YCmJLPnathD2TWQEvUUD4pWUSQ1UP8KtUZFzH8ARdkr",
-#    "ADENywZuaxmt9Ar8Hju9z4zMYktjTLTVecDrDENrTsKF",
-#])
-
-#TO DO: 
-#==================================
-#8deJ9xeUvXSJwicYptA9mHsU2rN2pDx37KWzkDkEXhU6
-#ADENywZuaxmt9Ar8Hju9z4zMYktjTLTVecDrDENrTsKF
-#FPAeapSTb5H33Jmm2cZXEJhBP2MdHYgoecxTmChHrocV
-#CU3ErWQvUQhxiLE8Kvo6NsYujTudYLUAJ1qogVkMJQ1r
-#TTdzckfwm7Y46gUULe6zmwC9z5pV1o5qaKkvAbAvXvY  ?
-#GpTXmkdvrTajqkzX1fBmC4BUjSboF9dHgfnqPqj8WAc4
-#2ezv4U5HmPpkt2xLsKnw1FyyGmjFBeW7c166p99Hw2xB
-#7BNaxx6KdUYrjACNQZ9He26NBFoFxujQMAfNLnArLGH5
-#5TaPtQ9DE1YMUfiyLv7CCNx1CEh88nWx3sPmNRz9zL75
-#Aqje5DsN4u2PHmQxGF9PKfpsDGwQRCBhWeLKHCFhSMXk
-#9sCcAxe56AuDQfJgU7kB1LpnQEYXDcGpAtXnN49H6SB3
-#HdKJM6Lvfp9aV9tvEMC8AD4GnsbFgMUkHLoK923Sn1ET
-#YCmJLPnathD2TWQEvUUD4pWUSQ1UP8KtUZFzH8ARdkr
-
-#DONE: 
-#==================================
-#CFS2db3cag9A3G8P5NHT3sbFTcvDeXW4WXgWn6tQcs74: ERROR 
-#2fg5QD1eD7rzNNCsvnhmXFm5hqNgwTTG8p7kQ6f3rx6f
 
 
 #HOMEBOT - 9EibckQ6Jdfnhb4uAG352KaepYXspRrcNwFjC7xkvRXx
-
-#8deJ9xeUvXSJwicYptA9mHsU2rN2pDx37KWzkDkEXhU6 - no matched trades found
-#ADENywZuaxmt9Ar8Hju9z4zMYktjTLTVecDrDENrTsKF - Fastest Copy: 4 slots
-#FPAeapSTb5H33Jmm2cZXEJhBP2MdHYgoecxTmChHrocV
-#CU3ErWQvUQhxiLE8Kvo6NsYujTudYLUAJ1qogVkMJQ1r
-#TTdzckfwm7Y46gUULe6zmwC9z5pV1o5qaKkvAbAvXvY  ?

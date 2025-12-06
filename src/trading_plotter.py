@@ -53,15 +53,15 @@ class TradingPlotter:
         - token (str): Token symbol
     """
 
-    def __init__(self, main_wallet: str, target_wallet: str = None):
+    def __init__(self, wallet_address: str, target_wallet: str = None):
         """
         Initialize the plotter
 
         Args:
-            main_wallet: Main wallet address being analyzed
+            wallet_address: Wallet address being analyzed
             target_wallet: Optional target wallet for comparison
         """
-        self.main_wallet = main_wallet
+        self.wallet_address = wallet_address
         self.target_wallet = target_wallet
 
     def plot_results(self, trades_df: pd.DataFrame, latency_df: pd.DataFrame = None,
@@ -257,7 +257,7 @@ class TradingPlotter:
             ax.legend()
 
         # Create title with target wallet if specified
-        title = f'Solana Copy-Trading Bot Analysis\n{self.main_wallet[:8]}...{self.main_wallet[-6:]}'
+        title = f'Solana Wallet Trade Analysis\n{self.wallet_address[:8]}...{self.wallet_address[-6:]}'
         if self.target_wallet:
             title += f'\nvs. {self.target_wallet[:8]}...{self.target_wallet[-6:]}'
 
@@ -282,7 +282,7 @@ class TradingPlotter:
         self._add_trade_table(ax, trades_df)
 
         # Create title with target wallet if specified
-        title = f'Trade Details - {self.main_wallet[:8]}...{self.main_wallet[-6:]}'
+        title = f'Trade Details - {self.wallet_address[:8]}...{self.wallet_address[-6:]}'
         if self.target_wallet:
             title += f'\nvs. {self.target_wallet[:8]}...{self.target_wallet[-6:]}'
 
@@ -391,7 +391,7 @@ class TradingPlotter:
         plt.colorbar(scatter, ax=ax6, label='P/L %')
 
         # Create title with target wallet if specified
-        title = f'Entry/Exit Behavior Analysis\n{self.main_wallet[:8]}...{self.main_wallet[-6:]}'
+        title = f'Entry/Exit Behavior Analysis\n{self.wallet_address[:8]}...{self.wallet_address[-6:]}'
         if self.target_wallet:
             title += f'\nvs. {self.target_wallet[:8]}...{self.target_wallet[-6:]}'
 
@@ -506,10 +506,10 @@ class TradingPlotter:
 
         # Generate filename with timestamp
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        dirname = f"./plots/{self.main_wallet}"
+        dirname = f"./plots/{self.wallet_address}"
         if not os.path.exists(dirname):
             os.mkdir(dirname)
-        filename = f"{dirname}/{plot_type}_{self.main_wallet[:8]}_{timestamp}.png"
+        filename = f"{dirname}/{plot_type}_{self.wallet_address[:8]}_{timestamp}.png"
 
         plt_instance.savefig(filename, dpi=300, bbox_inches='tight')
 

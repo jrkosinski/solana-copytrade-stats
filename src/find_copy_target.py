@@ -4,7 +4,7 @@ Find potential copy-trading targets for a bot by analyzing its trade history
 """
 
 import os
-from analyzer import SolanaCopyTradingAnalyzer
+from analyzer import WalletTradeAnalyzer
 from utils import find_copy_trading_targets
 from utils import printsave
 
@@ -22,24 +22,17 @@ printsave(f"Lookback blocks: {LOOKBACK_BLOCKS}")
 printsave(f"Min correlation score: {MIN_CORRELATION_SCORE}")
 printsave("=" * 80)
 
-# Get API key
-helius_api_key = os.getenv('HELIUS_API_KEY')
-if not helius_api_key:
-    printsave("ERROR: HELIUS_API_KEY environment variable not set")
-    exit(1)
-
 # Step 1: Analyze the bot's wallet to get matched trades
 printsave("\n📊 STEP 1: Analyzing bot's trade history...")
 printsave("=" * 80)
 
-analyzer = SolanaCopyTradingAnalyzer(
-    main_wallet=BOT_WALLET,
+analyzer = WalletTradeAnalyzer(
+    wallet_address=BOT_WALLET,
     target_wallet=None,
-    helius_api_key=helius_api_key,
-    use_cache = True
+    use_cache=True
 )
 
-trades_df = analyzer.analyze_wallet(limit=LIMIT)
+trades_df = analyzer.analyze(limit=LIMIT)
 
 # Get matched trades from analyzer
 matched_trades = analyzer.trades
@@ -69,7 +62,7 @@ for trade in matched_trades:
 
 result = find_copy_trading_targets(
     bot_trades=matched_trades,
-    helius_api_key=helius_api_key,
+    helius_api_key=os.getenv('HELIUS_API_KEY'),
     lookback_blocks=LOOKBACK_BLOCKS,
     min_correlation_score=MIN_CORRELATION_SCORE,
     bot_wallet=BOT_WALLET  # Exclude the bot itself from results

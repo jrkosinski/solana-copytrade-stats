@@ -45,15 +45,15 @@ class TradingReporter:
         - target_slot (int): Target transaction slot
     """
 
-    def __init__(self, main_wallet: str, target_wallet: str = None):
+    def __init__(self, wallet_address: str, target_wallet: str = None):
         """
         Initialize the reporter
 
         Args:
-            main_wallet: Main wallet address being analyzed
+            wallet_address: Wallet address being analyzed
             target_wallet: Optional target wallet for comparison
         """
-        self.main_wallet = main_wallet
+        self.wallet_address = wallet_address
         self.target_wallet = target_wallet
 
     def generate_report(self, trades_df: pd.DataFrame, latency_df: pd.DataFrame = None,
@@ -302,7 +302,7 @@ class TradingReporter:
         """
         # Create plots directory structure if it doesn't exist
         plots_dir = './plots'
-        wallet_dir = os.path.join(plots_dir, self.main_wallet)
+        wallet_dir = os.path.join(plots_dir, self.wallet_address)
         os.makedirs(wallet_dir, exist_ok=True)
 
         # Generate filename
