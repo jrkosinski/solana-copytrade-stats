@@ -9,7 +9,7 @@ from analyzer import WalletTradeAnalyzer, analyze_transaction
 
 def quick_solana_analysis(wallet_address: str,
                          target_wallet: str = None,
-                         limit: int = 1000,
+                         lookback: int = 1000,
                          use_cache=True):
     """
     Quick analysis function for Solana wallets
@@ -17,6 +17,7 @@ def quick_solana_analysis(wallet_address: str,
     Args:
         wallet_address: Wallet address to analyze
         target_wallet: Target wallet to compare (optional)
+        lookback: Number of transactions to look back
     """
 
     print("🚀 Solana Wallet Quick Analysis")
@@ -30,7 +31,7 @@ def quick_solana_analysis(wallet_address: str,
     )
 
     # Run analysis
-    trades_df = analyzer.analyze(limit=limit)  # Limit for quick analysis
+    trades_df = analyzer.analyze(lookback=lookback)
 
     # Generate report
     analyzer.generate_report()
@@ -39,7 +40,7 @@ def quick_solana_analysis(wallet_address: str,
 
 def full_solana_analysis(wallet_address: str,
                          target_wallet: str = None,
-                         limit: int = 1000,
+                         lookback: int = 1000,
                          save_plots: bool = False,
                          use_cache=True):
     """
@@ -48,11 +49,11 @@ def full_solana_analysis(wallet_address: str,
     Args:
         wallet_address: Wallet address to analyze
         target_wallet: Target wallet to compare (optional)
-        limit: API request limit per call
+        lookback: Number of transactions to look back
         save_plots: If True, save plots as PNG files to ./plots/ directory
     """
 
-    analyzer, trades_df = quick_solana_analysis(wallet_address, target_wallet, limit, use_cache=use_cache)
+    analyzer, trades_df = quick_solana_analysis(wallet_address, target_wallet, lookback, use_cache=use_cache)
 
     # Plot if data available
     if not trades_df.empty or not analyzer.latency_df.empty:
@@ -97,7 +98,7 @@ def find_copy_target(wallet_address: str,
                      lookback_blocks: int = 10,
                      min_correlation_score: int = 2,
                      num_trades_to_analyze: int = 5,
-                     limit: int = 100):
+                     lookback: int = 100):
     """
     Find potential copy-trading targets for a wallet
 
@@ -109,7 +110,7 @@ def find_copy_target(wallet_address: str,
         lookback_blocks: How many blocks to look backwards from each trade
         min_correlation_score: Minimum number of matching trade pairs required
         num_trades_to_analyze: Number of wallet's trades to analyze (smaller = faster)
-        limit: How many transactions to fetch from wallet
+        lookback: Number of transactions to fetch from wallet
 
     Returns:
         Dictionary with:
@@ -133,7 +134,7 @@ def find_copy_target(wallet_address: str,
         target_wallet=None
     )
 
-    trades_df = analyzer.analyze(limit=limit)
+    trades_df = analyzer.analyze(lookback=lookback)
     matched_trades = analyzer.trades
 
     if not matched_trades:

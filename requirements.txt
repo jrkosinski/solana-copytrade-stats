@@ -128,3 +128,5 @@ websocket-client==1.9.0
 websockets==15.0.1
 widgetsnbextension==4.0.15
 yarl==1.22.0
+fastapi==0.115.6
+uvicorn[standard]==0.34.0

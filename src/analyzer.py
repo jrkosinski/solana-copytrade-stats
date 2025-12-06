@@ -63,6 +63,10 @@ class WalletTradeAnalyzer:
         self.matched_tokens_only = matched_tokens_only
         self.use_cache = use_cache
 
+        # Status tracking for async analysis
+        self.status = "initialized"  # possible values: initialized, running, completed, error
+        self.error_message = None
+
         if not self.helius_api_key:
             raise OSError("HELIUS_API_KEY environment variable not set")
 
@@ -93,7 +97,7 @@ class WalletTradeAnalyzer:
         self.trades = []
       
  
-    def analyze(self, limit: int = 1000):
+    def analyze(self, lookback: int = 1000):
         """
         Main analysis function - orchestrates complete wallet analysis workflow.
 
@@ -105,7 +109,7 @@ class WalletTradeAnalyzer:
         5. Populates self.trades_df and self.latency_df DataFrames
 
         Args:
-            limit: Maximum number of transactions to fetch per wallet
+            lookback: Maximum number of transactions to fetch per wallet
 
         Returns:
             DataFrame containing matched trade pairs with columns:
@@ -123,75 +127,85 @@ class WalletTradeAnalyzer:
             - largest_buy_pct, largest_sell_pct: Largest single transaction percentages
         """
 
-        print(f"🚀 Analyzing Solana Wallet Trades")
-        print(f"   Wallet: {self.wallet_address}")
-        print("=" * 80)
+        try:
+            self.status = "running"
 
-        #Fetch bot trades
-        self.bot_txs = self._fetch_trades(self.wallet_address, limit=limit)
-        
-        #Match trades for P/L
-        print(f"\n💰 Matching trades for P/L calculation out of {len(self.bot_txs)} txs...")
-        self.trades = self._match_trades_for_pnl(self.bot_txs)
-        print(f"   Matched {len(self.trades)} trade pairs")
-        
-        #Convert to DataFrame
-        if self.trades:
-            self.trades_df = pd.DataFrame(self.trades)
-        else:
-            self.trades_df = pd.DataFrame()
-        
-        #Calculate latency if target wallet provided
-        if self.target_wallet:
-            print(f"\n⚡ Fetching target wallet trades... for wallet {self.target_wallet}")
-            target_txs = self._fetch_trades(self.target_wallet, limit)
+            print(f"🚀 Analyzing Solana Wallet Trades")
+            print(f"   Wallet: {self.wallet_address}")
+            print("=" * 80)
 
-            # Filter target trades to only include tokens that bot also traded
-            target_txs = self._filter_target_trades_by_bot_tokens(target_txs)
+            #Fetch bot trades
+            self.bot_txs = self._fetch_trades(self.wallet_address, limit=lookback)
 
-            print("📊 Calculating copy latency...")
-            latency_data = self._calculate_latency(self.bot_txs, target_txs)
+            #Match trades for P/L
+            print(f"\n💰 Matching trades for P/L calculation out of {len(self.bot_txs)} txs...")
+            self.trades = self._match_trades_for_pnl(self.bot_txs)
+            print(f"   Matched {len(self.trades)} trade pairs")
 
-            if latency_data:
-                self.latency_df = pd.DataFrame(latency_data)
-                print(f"   Calculated latency for {len(latency_data)} trades")
+            #Convert to DataFrame
+            if self.trades:
+                self.trades_df = pd.DataFrame(self.trades)
+            else:
+                self.trades_df = pd.DataFrame()
+
+            #Calculate latency if target wallet provided
+            if self.target_wallet:
+                print(f"\n⚡ Fetching target wallet trades... for wallet {self.target_wallet}")
+                target_txs = self._fetch_trades(self.target_wallet, lookback)
+
+                # Filter target trades to only include tokens that bot also traded
+                target_txs = self._filter_target_trades_by_bot_tokens(target_txs)
+
+                print("📊 Calculating copy latency...")
+                latency_data = self._calculate_latency(self.bot_txs, target_txs)
+
+                if latency_data:
+                    self.latency_df = pd.DataFrame(latency_data)
+                    print(f"   Calculated latency for {len(latency_data)} trades")
+                else:
+                    self.latency_df = pd.DataFrame()
             else:
                 self.latency_df = pd.DataFrame()
-        else:
-            self.latency_df = pd.DataFrame()
 
-        #Filter to matched trades only if requested
-        if self.matched_tokens_only and self.target_wallet and not self.latency_df.empty and not self.trades_df.empty:
-            original_count = len(self.trades_df)
+            #Filter to matched trades only if requested
+            if self.matched_tokens_only and self.target_wallet and not self.latency_df.empty and not self.trades_df.empty:
+                original_count = len(self.trades_df)
 
-            #Get set of matched token symbols from latency data
-            matched_tokens = set(self.latency_df['token'].unique())
+                #Get set of matched token symbols from latency data
+                matched_tokens = set(self.latency_df['token'].unique())
 
-            #Debug: Show what we're filtering
-            print(f"\n🔍 DEBUG: Matched tokens from latency: {matched_tokens}")
-            print(f"🔍 DEBUG: Unique tokens in trades_df: {set(self.trades_df['token'].unique())}")
+                #Debug: Show what we're filtering
+                print(f"\n🔍 DEBUG: Matched tokens from latency: {matched_tokens}")
+                print(f"🔍 DEBUG: Unique tokens in trades_df: {set(self.trades_df['token'].unique())}")
 
-            #Filter trades_df to only include tokens that were matched
-            self.trades_df = self.trades_df[self.trades_df['token'].isin(matched_tokens)].copy()
+                #Filter trades_df to only include tokens that were matched
+                self.trades_df = self.trades_df[self.trades_df['token'].isin(matched_tokens)].copy()
 
-            filtered_count = len(self.trades_df)
+                filtered_count = len(self.trades_df)
 
-            if filtered_count == 0:
-                print(f"\n⚠️ WARNING: matched_tokens_only removed all trades!")
-                print(f"   This might indicate a token symbol mismatch between latency matching and trade matching.")
-                print(f"   Keeping all {original_count} trades for analysis.")
-                # Reload the original trades_df
-                #self.trades_df = pd.DataFrame(self.trades)
-            else:
-                print(f"\n🔍 Filtered to Matched Trades Only:")
-                print(f"   Kept {filtered_count} of {original_count} trades that matched with target wallet")
-                print(f"   Excluded {original_count - filtered_count} unmatched trades")
+                if filtered_count == 0:
+                    print(f"\n⚠️ WARNING: matched_tokens_only removed all trades!")
+                    print(f"   This might indicate a token symbol mismatch between latency matching and trade matching.")
+                    print(f"   Keeping all {original_count} trades for analysis.")
+                    # Reload the original trades_df
+                    #self.trades_df = pd.DataFrame(self.trades)
+                else:
+                    print(f"\n🔍 Filtered to Matched Trades Only:")
+                    print(f"   Kept {filtered_count} of {original_count} trades that matched with target wallet")
+                    print(f"   Excluded {original_count - filtered_count} unmatched trades")
 
-        #filter outliers
-        if (self.filter_outliers):
-            self._filter_outliers_from_trades()
+            #filter outliers
+            if (self.filter_outliers):
+                self._filter_outliers_from_trades()
 
-        return self.trades_df
+            self.status = "completed"
+            return self.trades_df
+
+        except Exception as e:
+            self.status = "error"
+            self.error_message = str(e)
+            print(f"Error during analysis: {e}")
+            raise
     
     def generate_report(self, save_to_file=False):
         """
