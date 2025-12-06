@@ -10,7 +10,8 @@ from analyzer import WalletTradeAnalyzer, analyze_transaction
 def quick_solana_analysis(wallet_address: str,
                          target_wallet: str = None,
                          lookback: int = 1000,
-                         use_cache=True):
+                         read_cache=True,
+                         write_cache=True):
     """
     Quick analysis function for Solana wallets
 
@@ -27,7 +28,8 @@ def quick_solana_analysis(wallet_address: str,
     analyzer = WalletTradeAnalyzer(
         wallet_address=wallet_address,
         target_wallet=target_wallet,
-        use_cache=use_cache
+        read_cache=True,
+        write_cache=True
     )
 
     # Run analysis
@@ -42,7 +44,8 @@ def full_solana_analysis(wallet_address: str,
                          target_wallet: str = None,
                          lookback: int = 1000,
                          save_plots: bool = False,
-                         use_cache=True):
+                         read_cache=True,
+                         write_cache=True):
     """
     Full analysis function for Solana wallets
 
@@ -53,7 +56,7 @@ def full_solana_analysis(wallet_address: str,
         save_plots: If True, save plots as PNG files to ./plots/ directory
     """
 
-    analyzer, trades_df = quick_solana_analysis(wallet_address, target_wallet, lookback, use_cache=use_cache)
+    analyzer, trades_df = quick_solana_analysis(wallet_address, target_wallet, lookback, read_cache=read_cache, write_cache=write_cache)
 
     # Plot if data available
     if not trades_df.empty or not analyzer.latency_df.empty:
@@ -69,7 +72,7 @@ def full_solana_analysis(wallet_address: str,
 
 def quick_analyses(wallets):
     for wallet in wallets:
-        quick_solana_analysis(wallet, None, 3000, use_cache=True)
+        quick_solana_analysis(wallet, None, 3000, read_cache=True, write_cache=True)
 
 def full_analyses(wallets):
     for wallet in wallets:
@@ -163,7 +166,7 @@ if (full_analyze):
 
     #full_solana_analysis("CyaE1VxvBrahnPWkqm5VsdCvyS2QmNht2UFrKJHga54o", #"8WEs4FurJNq3zsvUVXKuLCPteGEjYGNq45E4yPpY6no3", 
     #    None, #"AEfUGoV2qh1A1k3KxuEpZS9o8wSLKXpHpCUkv5mov6Zk", 
-    #    5000, use_cache=False)
+    #    5000, read_cache=False, write_cache=False)
 
     full_analyses([
         "2fg5QD1eD7rzNNCsvnhmXFm5hqNgwTTG8p7kQ6f3rx6f",

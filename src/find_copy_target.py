@@ -29,7 +29,8 @@ printsave("=" * 80)
 analyzer = WalletTradeAnalyzer(
     wallet_address=BOT_WALLET,
     target_wallet=None,
-    use_cache=True
+    read_cache=True,
+    write_cache=True
 )
 
 trades_df = analyzer.analyze(limit=LIMIT)

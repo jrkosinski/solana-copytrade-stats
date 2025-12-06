@@ -9,7 +9,7 @@ sys.path.insert(0, 'src')
 import main
 main.full_analyze = False
 
-from analyzer import SolanaCopyTradingAnalyzer
+from analyzer import WalletTradingAnalyzer
 
 # Now import after setting the flag
 helius_api_key = os.getenv('HELIUS_API_KEY')
@@ -18,11 +18,12 @@ print("Testing Position Size Tracking Implementation")
 print("=" * 60)
 
 # Create analyzer with cached data
-analyzer = SolanaCopyTradingAnalyzer(
+analyzer = WalletTradingAnalyzer(
     main_wallet="8WEs4FurJNq3zsvUVXKuLCPteGEjYGNq45E4yPpY6no3",
     target_wallet=None,
     helius_api_key=helius_api_key,
-    use_cache=True
+    read_cache=True,
+    write_cache=True
 )
 
 # Analyze wallet

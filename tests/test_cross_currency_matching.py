@@ -5,7 +5,7 @@ Debug script to check what transactions are actually being processed by the anal
 import os
 import sys
 sys.path.insert(0, 'src')
-from analyzer import SolanaCopyTradingAnalyzer
+from analyzer import WalletTradingAnalyzer
 
 wallet = "2fg5QD1eD7rzNNCsvnhmXFm5hqNgwTTG8p7kQ6f3rx6f"
 helius_api_key = os.getenv('HELIUS_API_KEY')
@@ -14,11 +14,12 @@ print("🔍 Debugging analyzer transaction processing")
 print("=" * 80)
 
 # Create analyzer
-analyzer = SolanaCopyTradingAnalyzer(
+analyzer = WalletTradingAnalyzer(
     main_wallet=wallet,
     target_wallet=None,
     helius_api_key=helius_api_key,
-    use_cache=False
+    read_cache=True,
+    write_cache=True
 )
 
 # Fetch just a few transactions to see what's happening

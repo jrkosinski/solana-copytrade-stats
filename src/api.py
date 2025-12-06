@@ -32,6 +32,7 @@ class WalletAnalysisOptions(BaseModel):
     save_plots: bool = True
     read_cache: bool = True
     write_cache: bool = True
+    matched_tokens_only: bool = True
     lookback: int = 3000
 
 
@@ -146,7 +147,8 @@ async def analyze_wallet(
         None,
         filter_outliers=filter_outliers,
         matched_tokens_only=False,  # No target wallet, so can't filter
-        use_cache=write_cache and read_cache,
+        read_cache=read_cache
+        write_cache=write_cache,
         analysis_id=analysis_id
     )
 

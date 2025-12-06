@@ -2,18 +2,19 @@
 import os
 import sys
 sys.path.insert(0, 'src')
-from analyzer import SolanaCopyTradingAnalyzer
+from analyzer import WalletTradingAnalyzer
 
 wallet = "2fg5QD1eD7rzNNCsvnhmXFm5hqNgwTTG8p7kQ6f3rx6f"
 helius_api_key = os.getenv('HELIUS_API_KEY')
 
 print("Testing transfer cost estimation...\n")
 
-analyzer = SolanaCopyTradingAnalyzer(
+analyzer = WalletTradingAnalyzer(
     main_wallet=wallet,
     target_wallet=None,
     helius_api_key=helius_api_key,
-    use_cache=False
+    read_cache=True,
+    write_cache=True
 )
 
 # Analyze with limited transactions

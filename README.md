@@ -195,7 +195,7 @@ Caches fetched transaction data to avoid repeated API calls.
 ```
 solana-copytrade-stats/
 ├── src/
-│   ├── analyzer.py      # Main SolanaCopyTradingAnalyzer class
+│   ├── analyzer.py      # Main WalletTradingAnalyzer class
 │   └── main.py          # Entry point with wallet configurations
 ├── cached_results/      # Cached transaction data (JSON)
 ├── csv/                 # Exported CSV trade reports
@@ -211,10 +211,10 @@ solana-copytrade-stats/
 ### Using in Jupyter Notebooks
 
 ```python
-from src.analyzer import SolanaCopyTradingAnalyzer
+from src.analyzer import WalletTradingAnalyzer
 import os
 
-analyzer = SolanaCopyTradingAnalyzer(
+analyzer = WalletTradingAnalyzer(
     main_wallet="YourWalletAddress",
     helius_api_key=os.getenv('HELIUS_API_KEY'),
     filter_outliers=True
@@ -235,7 +235,7 @@ analyzer.plot_results()
 When analyzing a copy-trading bot, you can compare it against the wallet being copied:
 
 ```python
-analyzer = SolanaCopyTradingAnalyzer(
+analyzer = WalletTradingAnalyzer(
     main_wallet="YourBotWalletAddress",
     target_wallet="WalletBeingCopied",
     helius_api_key=os.getenv('HELIUS_API_KEY'),

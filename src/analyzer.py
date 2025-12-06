@@ -2,8 +2,8 @@ import requests
 import pandas as pd
 import numpy as np
 import os
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from datetime import datetime
+from typing import Dict, List, Tuple
 import json
 from web3 import Web3
 from src.trading_plotter import TradingPlotter
@@ -37,7 +37,8 @@ class WalletTradeAnalyzer:
     def __init__(self, wallet_address: str, target_wallet: str = None,
                  filter_outliers: bool = False,
                  matched_tokens_only: bool = True,
-                 use_cache: bool = False,
+                 read_cache: bool = False,
+                 write_cache: bool = False,
                  analysis_id: str = None):
         """
         Initialize the Solana wallet analyzer.
@@ -49,7 +50,8 @@ class WalletTradeAnalyzer:
             filter_outliers: If True, exclude trades with P/L outside MIN_PNL_PCT to MAX_PNL_PCT range
             matched_tokens_only: If True and target_wallet provided, only include trades where both
                                    wallets traded the same token (for focused latency analysis)
-            use_cache: If True, cache transaction data to ./cached_results/ and reuse on subsequent runs
+            read_cache: If True, cache transaction data to ./cached_results/ and reuse on subsequent runs
+            write_cache: If True, cache transaction data to ./cached_results/ and reuse on subsequent runs
             analysis_id: Optional unique identifier for organizing output files
 
         Raises:
@@ -62,7 +64,8 @@ class WalletTradeAnalyzer:
         self.shyft_api_key = os.getenv('SHYFT_API_KEY')
         self.filter_outliers = filter_outliers
         self.matched_tokens_only = matched_tokens_only
-        self.use_cache = use_cache
+        self.read_cache = read_cache
+        self.write_cache = write_cache
         self.analysis_id = analysis_id
 
         # Status tracking for async analysis
@@ -374,7 +377,7 @@ class WalletTradeAnalyzer:
         """
         Fetch trades for a wallet, using cache if enabled or fetching fresh data.
 
-        This method checks for cached results if use_cache=True, otherwise fetches
+        This method checks for cached results if read_cache=True, otherwise fetches
         fresh data from Helius API. Automatically caches results when fetching fresh.
 
         Args:
@@ -387,20 +390,21 @@ class WalletTradeAnalyzer:
         txs = {}
 
         # Check for cached data
-        if (self.use_cache):
+        if (self.read_cache):
             cache_success, txs = self._get_cached_trade_results(wallet)
             if not cache_success:
                 # Fetch fresh data
                 txs = self._fetch_trades_raw(wallet, limit)
-
-                # Write to cache file
-                print('WRITING TO CACHE');
-                self._write_to_trades_cache(wallet, txs)
             else: 
                 return txs
         else: 
             # Fetch fresh data
             txs = self._fetch_trades_raw(wallet, limit)
+
+        # Write to cache file
+        if self.write_cache:
+            print('WRITING TO CACHE')
+            self._write_to_trades_cache(wallet, txs)
 
         return txs
 
