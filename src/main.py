@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from analyzer import WalletTradeAnalyzer, analyze_transaction
+from src.analyzer import WalletTradeAnalyzer, analyze_transaction
 
 #TODO: that bug where it thinks a str is a tx: Error with Helius API: 'str' object has no attribute 'get'
 #TODO: outliers filtered out but not for the plotting

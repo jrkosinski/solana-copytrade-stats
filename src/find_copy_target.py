@@ -4,7 +4,7 @@ Find potential copy-trading targets for a bot by analyzing its trade history
 """
 
 import os
-from analyzer import WalletTradeAnalyzer
+from src.analyzer import WalletTradeAnalyzer
 from utils import find_copy_trading_targets
 from utils import printsave
 

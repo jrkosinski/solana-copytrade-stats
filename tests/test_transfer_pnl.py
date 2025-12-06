@@ -2,7 +2,7 @@
 import os
 import sys
 sys.path.insert(0, 'src')
-from analyzer import WalletTradingAnalyzer
+from src.analyzer import WalletTradingAnalyzer
 
 wallet = "2fg5QD1eD7rzNNCsvnhmXFm5hqNgwTTG8p7kQ6f3rx6f"
 helius_api_key = os.getenv('HELIUS_API_KEY')

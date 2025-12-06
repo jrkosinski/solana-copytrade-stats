@@ -147,7 +147,7 @@ async def analyze_wallet(
         None,
         filter_outliers=filter_outliers,
         matched_tokens_only=False,  # No target wallet, so can't filter
-        read_cache=read_cache
+        read_cache=read_cache,
         write_cache=write_cache,
         analysis_id=analysis_id
     )

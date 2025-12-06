@@ -9,7 +9,7 @@ sys.path.insert(0, 'src')
 import main
 main.full_analyze = False
 
-from analyzer import WalletTradingAnalyzer
+from src.analyzer import WalletTradingAnalyzer
 
 # Now import after setting the flag
 helius_api_key = os.getenv('HELIUS_API_KEY')
