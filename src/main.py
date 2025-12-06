@@ -1,7 +1,6 @@
 import os
 from datetime import datetime
 from analyzer import SolanaCopyTradingAnalyzer, analyze_transaction
-from tokenchart import TokenChart
 
 #TODO: that bug where it thinks a str is a tx: Error with Helius API: 'str' object has no attribute 'get'
 #TODO: outliers filtered out but not for the plotting
@@ -171,14 +170,8 @@ full_analyze = True
 
 if (full_analyze): 
 
-    #full_solana_analysis("8deJ9xeUvXSJwicYptA9mHsU2rN2pDx37KWzkDkEXhU6", 
+    #full_solana_analysis("8deJ9xeUvXSJwicYptA9mHsU2rN2pDx37KWzkDkEXhU6",
     #    None, 1000)
-
-
-    #chart = TokenChart( "F2rgvoWN6AM5U82BxV6AxXTLq3CJmTbF7bu7Yssxpump", os.getenv('HELIUS_API_KEY'),
-    #    372916770, 372916870)
-    #chart.build_chart()
-
 
 #AEfUGoV2qh1A1k3KxuEpZS9o8wSLKXpHpCUkv5mov6Zk
 #########################
