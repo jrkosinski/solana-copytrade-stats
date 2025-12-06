@@ -57,7 +57,7 @@ class TradingReporter:
         self.target_wallet = target_wallet
 
     def generate_report(self, trades_df: pd.DataFrame, latency_df: pd.DataFrame = None,
-                       bot_txs_count: int = 0, save_to_file: bool = False):
+                       bot_txs_count: int = 0, save_to_file: bool = True):
         """
         Generate comprehensive analysis report with statistics and metrics
 
@@ -147,7 +147,7 @@ class TradingReporter:
                 print_and_capture(f"   Gradual Exits (<50%): {gradual_exits} ({gradual_exits/len(trades_df)*100:.1f}%)")
         else:
             print_and_capture("\n⚠️ No matched trades found")
-            print_and_capture("   Raw transaction count:", bot_txs_count)
+            print_and_capture(f"   Raw transaction count: {bot_txs_count}")
 
         if latency_df is not None and not latency_df.empty:
             print_and_capture("\n⚡ Copy Latency Statistics:")
@@ -181,6 +181,7 @@ class TradingReporter:
                 print_and_capture(f"      Target Slot:      {row['target_slot']}")
 
         # Save report to file if requested
+        save_to_file = True
         if save_to_file:
             self._save_report_to_file(report_lines)
 
