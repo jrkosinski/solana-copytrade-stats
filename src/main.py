@@ -28,8 +28,8 @@ def quick_solana_analysis(wallet_address: str,
     analyzer = WalletTradeAnalyzer(
         wallet_address=wallet_address,
         target_wallet=target_wallet,
-        read_cache=True,
-        write_cache=True
+        read_cache=read_cache,
+        write_cache=write_cache
     )
 
     # Run analysis
@@ -164,9 +164,11 @@ full_analyze = True
 
 if (full_analyze): 
 
-    #full_solana_analysis("CyaE1VxvBrahnPWkqm5VsdCvyS2QmNht2UFrKJHga54o", #"8WEs4FurJNq3zsvUVXKuLCPteGEjYGNq45E4yPpY6no3", 
-    #    None, #"AEfUGoV2qh1A1k3KxuEpZS9o8wSLKXpHpCUkv5mov6Zk", 
-    #    5000, read_cache=False, write_cache=False)
+    full_solana_analysis("4BdKaxN8G6ka4GYtQQWk4G4dZRUTX2vQH9GcXdBREFUk", #"CyaE1VxvBrahnPWkqm5VsdCvyS2QmNht2UFrKJHga54o", #"8WEs4FurJNq3zsvUVXKuLCPteGEjYGNq45E4yPpY6no3", 
+        None, #"AEfUGoV2qh1A1k3KxuEpZS9o8wSLKXpHpCUkv5mov6Zk", 
+        lookback=9000, read_cache=False, write_cache=False)
+    
+    exit()
 
     full_analyses([
         "2fg5QD1eD7rzNNCsvnhmXFm5hqNgwTTG8p7kQ6f3rx6f",

@@ -391,6 +391,7 @@ class WalletTradeAnalyzer:
 
         # Check for cached data
         if (self.read_cache):
+            print('FETCHING FROM CACHE')
             cache_success, txs = self._get_cached_trade_results(wallet)
             if not cache_success:
                 # Fetch fresh data
@@ -462,6 +463,7 @@ class WalletTradeAnalyzer:
         prevBefore = ''
 
         while (count < limit):
+            print(f"count is {count}, and limit is {limit}")
             params = {
                 'api-key': self.helius_api_key,
                 #'limit': limit,
@@ -474,8 +476,8 @@ class WalletTradeAnalyzer:
             print(before)
 
             # we are just looping here, nothing more to be found
-            if (len(prevBefore) > 0 and prevBefore == before):
-                break
+            #if (len(prevBefore) > 0 and prevBefore == before):
+            #    break
             
             prevBefore = before
             
